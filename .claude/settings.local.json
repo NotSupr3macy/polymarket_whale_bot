@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -c \"from bot import WhaleBot, PendingWhaleExit; from config import BotConfig; b = WhaleBot\\(BotConfig\\(\\)\\); print\\(f''WhaleBot init OK, pending_exits={len\\(b._pending_whale_exits\\)}, exit_tracking={len\\(b._whale_exit_tracking\\)}''\\)\")"
+    ]
+  }
+}

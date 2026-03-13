@@ -1,0 +1,33 @@
+# Environment
+.env
+venv/
+.venv/
+
+# Database
+*.db
+*.db-journal
+
+# Logs
+logs/*.log
+whale_bot.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Exports
+trades_export.csv
