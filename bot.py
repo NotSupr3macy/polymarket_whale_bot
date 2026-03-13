@@ -137,7 +137,8 @@ class WhaleBot:
         stop_check_task = asyncio.create_task(self._stop_loss_loop(), name="stop_loss")
         cleanup_task = asyncio.create_task(self._cleanup_loop(), name="cleanup")
         resolution_task = asyncio.create_task(self._resolution_loop(), name="resolution")
-        self._tasks = [monitor_task, stop_check_task, cleanup_task, resolution_task]
+        status_task = asyncio.create_task(self._status_report_loop(), name="status_report")
+        self._tasks = [monitor_task, stop_check_task, cleanup_task, resolution_task, status_task]
 
         logger.info("Bot started — waiting for whale signals...")
 
@@ -826,6 +827,79 @@ class WhaleBot:
             positions.append(pos)
 
         self.risk.load_positions(positions)
+
+    # ── Periodic Status Report ────────────────────────────────────
+
+    STATUS_REPORT_INTERVAL_SECONDS: float = 6 * 3600  # Every 6 hours
+
+    async def _status_report_loop(self) -> None:
+        """Send a Telegram status report every 6 hours."""
+        while self._running:
+            try:
+                await asyncio.sleep(self.STATUS_REPORT_INTERVAL_SECONDS)
+                if not self._running:
+                    break
+                msg = self._build_status_message()
+                await self._send_alert(msg)
+                logger.info("Sent 6-hour status report via Telegram")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug("Status report failed: %s", e)
+
+    def _build_status_message(self) -> str:
+        """Build a Telegram-friendly status report."""
+        runtime = time.time() - self._start_time
+        hours = runtime / 3600
+
+        risk_stats = self.risk.get_stats()
+        engine_stats = self.engine.get_stats()
+        executor_stats = self.executor.get_stats()
+        journal_stats = self.journal.get_performance_stats()
+        resolution_stats = self.resolution_tracker.get_stats()
+
+        mode = "DRY RUN" if self.config.DRY_RUN else "LIVE"
+        open_positions = self.risk.get_open_positions()
+
+        lines = [
+            f"<b>STATUS REPORT ({mode})</b>",
+            f"Uptime: {hours:.1f}h",
+            f"Bankroll: ${risk_stats['bankroll']:,.2f}",
+            f"Total PnL: ${risk_stats['total_pnl']:,.2f} ({risk_stats['total_return_pct']:.1f}%)",
+            "",
+        ]
+
+        # Open positions
+        if open_positions:
+            lines.append(f"<b>Open Positions ({len(open_positions)}):</b>")
+            for pos in open_positions:
+                stop = "HOLD" if not pos.stop_loss_enabled else f"SL {pos.stop_loss_price:.3f}"
+                lines.append(
+                    f"  {pos.direction} ${pos.position_size:,.2f} @ {pos.entry_price:.3f} [{stop}]"
+                )
+            lines.append("")
+        else:
+            lines.append("Open Positions: 0")
+            lines.append("")
+
+        # Session stats
+        lines.append(f"Signals: {engine_stats['signals_processed']}")
+        lines.append(f"Orders: {executor_stats['orders_placed']}")
+
+        if journal_stats["total_trades"] > 0:
+            lines.append(
+                f"Trades: {journal_stats['total_trades']} "
+                f"(WR: {journal_stats['win_rate']:.0%})"
+            )
+            lines.append(f"Best: ${journal_stats['best_trade']:,.2f}")
+            lines.append(f"Worst: ${journal_stats['worst_trade']:,.2f}")
+
+        if resolution_stats["resolutions_found"] > 0:
+            lines.append(f"Resolved: {resolution_stats['resolutions_found']}")
+
+        lines.append(f"Max DD: {risk_stats.get('current_drawdown_pct', 0):.1f}%")
+
+        return "\n".join(lines)
 
     # ── Alerts ─────────────────────────────────────────────────────
 
