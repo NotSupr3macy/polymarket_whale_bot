@@ -742,6 +742,9 @@ class WhaleBot:
             try:
                 await asyncio.sleep(RESOLUTION_CHECK_INTERVAL_SECONDS)
 
+                # Check open hold-to-resolution positions for market settlement
+                await self._check_open_position_resolutions()
+
                 resolved = await self.resolution_tracker.check_resolutions()
                 if resolved > 0:
                     logger.info("Resolution check: %d trades resolved", resolved)
@@ -750,6 +753,73 @@ class WhaleBot:
                 break
             except Exception as e:
                 logger.error("Resolution check error: %s", e)
+
+    async def _check_open_position_resolutions(self) -> None:
+        """
+        Check if any open positions (especially hold-to-resolution) have settled.
+        If a market has resolved, close the position with the correct payout.
+        """
+        hold_positions = [
+            p for p in self.risk.open_positions if not p.stop_loss_enabled
+        ]
+        if not hold_positions:
+            return
+
+        logger.info(
+            "Checking %d hold-to-resolution positions for settlement",
+            len(hold_positions),
+        )
+
+        for pos in hold_positions:
+            try:
+                resolution_data = await self.resolution_tracker._fetch_market_resolution(
+                    pos.condition_id
+                )
+                if not resolution_data:
+                    continue
+
+                tokens = resolution_data.get("tokens", [])
+                has_winner = any(t.get("winner") is True for t in tokens)
+                if not has_winner:
+                    continue
+
+                # Market resolved — determine outcome and close position
+                outcome = self.resolution_tracker._determine_outcome(pos.direction, tokens)
+                market_title = resolution_data.get("question", pos.condition_id[:30])
+
+                if outcome == "WIN":
+                    # Payout is $1 per share, we paid entry_price per share
+                    exit_price = 1.0
+                    pnl = (1.0 - pos.entry_price) * pos.shares
+                elif outcome == "LOSS":
+                    exit_price = 0.0
+                    pnl = -pos.entry_price * pos.shares
+                else:
+                    # VOID — refund at entry price
+                    exit_price = pos.entry_price
+                    pnl = 0.0
+
+                # Close the position
+                self.journal.log_exit(pos.trade_id, exit_price, pnl, "resolution")
+                self.risk.register_exit(pos.trade_id, exit_price, pnl)
+
+                logger.info(
+                    "RESOLVED POSITION: %s %s -> %s | PnL=$%.2f | %s",
+                    pos.direction, pos.trade_id[:12], outcome, pnl,
+                    market_title[:40],
+                )
+
+                await self._send_alert(
+                    f"<b>MARKET RESOLVED</b>\n"
+                    f"{'✅ WIN' if outcome == 'WIN' else '❌ LOSS' if outcome == 'LOSS' else '⚪ VOID'}\n"
+                    f"Market: {market_title[:50]}\n"
+                    f"Direction: {pos.direction}\n"
+                    f"PnL: ${pnl:,.2f}\n"
+                    f"Entry: ${pos.entry_price:.3f} | Size: ${pos.position_size:,.2f}"
+                )
+
+            except Exception as e:
+                logger.debug("Resolution check failed for %s: %s", pos.trade_id[:12], e)
 
     # ── Cleanup loop ───────────────────────────────────────────────
 
