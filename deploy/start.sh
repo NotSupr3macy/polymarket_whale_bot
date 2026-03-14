@@ -14,9 +14,12 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
     exit 1
 fi
 
+# Activate venv if present (needed for cron and manual usage)
+VENV_ACTIVATE="$(dirname "$0")/../venv/bin/activate"
+
 # Pass all CLI args through (e.g. --live --bankroll 500)
 tmux new-session -d -s "$SESSION" \
-    "python3 cli.py $* 2>&1 | tee -a logs/bot.log"
+    "cd $(pwd) && source $VENV_ACTIVATE 2>/dev/null; python3 cli.py $* 2>&1 | tee -a logs/bot.log"
 
 echo "Bot started in tmux session '$SESSION'"
 echo "  Attach:  tmux attach -t $SESSION"
