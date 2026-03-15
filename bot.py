@@ -940,7 +940,7 @@ class WhaleBot:
         resolution_stats = self.resolution_tracker.get_stats()
 
         mode = "DRY RUN" if self.config.DRY_RUN else "LIVE"
-        open_positions = self.risk.get_open_positions()
+        open_positions = self.risk.open_positions
 
         lines = [
             f"<b>STATUS REPORT ({mode})</b>",
@@ -954,9 +954,9 @@ class WhaleBot:
         if open_positions:
             lines.append(f"<b>Open Positions ({len(open_positions)}):</b>")
             for pos in open_positions:
-                stop = "HOLD" if not pos.stop_loss_enabled else f"SL {pos.stop_loss_price:.3f}"
+                stop = "HOLD" if not pos.stop_loss_enabled else f"SL {pos.stop_price:.3f}"
                 lines.append(
-                    f"  {pos.direction} ${pos.position_size:,.2f} @ {pos.entry_price:.3f} [{stop}]"
+                    f"  {pos.direction} ${pos.size_usd:,.2f} @ {pos.entry_price:.3f} [{stop}]"
                 )
             lines.append("")
         else:
