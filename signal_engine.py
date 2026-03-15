@@ -99,10 +99,55 @@ class SignalEngine:
         self._recent_opportunities: dict[str, float] = {}
         self._dedup_window = 60.0
 
+        # ── Signal cooldown: prevents duplicate stacking from chunked whale entries ──
+        # Key: (whale_address, condition_id) -> expiry timestamp
+        self._signal_cooldowns: dict[tuple[str, str], float] = {}
+        self.SIGNAL_COOLDOWN_MINUTES = 60  # Suppress same whale+market for 60 min
+
+        # ── Reference to risk manager (set by bot.py after init) ──
+        self._risk_manager = None  # type: ignore
+
         # Event cache: condition_id -> event_slug (fetched from Gamma API)
         self._event_cache: dict[str, str] = {}
         self._event_cache_misses: dict[str, float] = {}  # condition_id -> last_attempt_time
         self._http_session: aiohttp.ClientSession | None = None
+
+    def set_risk_manager(self, risk_manager) -> None:
+        """Set reference to risk manager for open position checks."""
+        self._risk_manager = risk_manager
+
+    def is_on_cooldown(self, wallet: str, condition_id: str) -> bool:
+        """Check if a whale+market pair is on signal cooldown."""
+        key = (wallet, condition_id)
+        if key in self._signal_cooldowns:
+            if time.time() < self._signal_cooldowns[key]:
+                remaining = (self._signal_cooldowns[key] - time.time()) / 60
+                logger.debug(
+                    "Cooldown active: %s on %s (%.0fm left)",
+                    wallet[:10], condition_id[:16], remaining,
+                )
+                return True
+            else:
+                del self._signal_cooldowns[key]
+        return False
+
+    def set_cooldown(self, wallet: str, condition_id: str, minutes: int = 60) -> None:
+        """Set signal cooldown for a whale+market pair."""
+        key = (wallet, condition_id)
+        self._signal_cooldowns[key] = time.time() + (minutes * 60)
+        logger.info(
+            "Cooldown set: %s on %s for %dm",
+            wallet[:10], condition_id[:16], minutes,
+        )
+
+    def has_open_position_on_market(self, condition_id: str) -> bool:
+        """Check if we already have any open position on this market."""
+        if self._risk_manager is None:
+            return False
+        for pos in self._risk_manager.open_positions:
+            if pos.condition_id == condition_id or pos.market_id == condition_id:
+                return True
+        return False
 
     async def _ensure_session(self) -> None:
         """Lazy-init HTTP session for Gamma API calls."""
@@ -138,6 +183,23 @@ class SignalEngine:
         if not whale_config.get("solo_enabled", True):
             logger.info(
                 "Skipped solo from %s (consensus-only whale)", signal.alias,
+            )
+            return None
+
+        # ── Cooldown check: suppress duplicate signals from same whale on same market ──
+        market_key = signal.condition_id or signal.market_id
+        if self.is_on_cooldown(signal.wallet, market_key):
+            logger.info(
+                "Suppressed: duplicate solo from %s on %s (cooldown)",
+                signal.alias, market_key[:16],
+            )
+            return None
+
+        # ── Already have position check: don't open second position on same market ──
+        if self.has_open_position_on_market(market_key):
+            logger.info(
+                "Suppressed: already have position on %s (solo from %s)",
+                market_key[:16], signal.alias,
             )
             return None
 
@@ -210,6 +272,14 @@ class SignalEngine:
         unique_whales = {s.wallet for s in signals}
 
         if len(unique_whales) < self.config.MIN_WHALES_SIGNALING:
+            return None
+
+        # ── Don't stack consensus on top of existing position ──
+        if self.has_open_position_on_market(market):
+            logger.info(
+                "Consensus CONFIRMS existing position on %s (%d whales agree) — no new trade",
+                market[:16], len(unique_whales),
+            )
             return None
 
         # Deduplicate: use latest signal per whale
@@ -310,6 +380,14 @@ class SignalEngine:
                 continue
 
             # We have 2+ whales on the same event — event consensus!
+            # Don't stack on existing position
+            if self.has_open_position_on_market(market):
+                logger.info(
+                    "Event consensus CONFIRMS existing position on %s — no new trade",
+                    market[:16],
+                )
+                return None
+
             all_signals = self._pending.get(market, []) + other_signals
             combined_aliases = list({s.alias for s in all_signals})
             combined_whales = {s.wallet for s in all_signals}
@@ -427,6 +505,14 @@ class SignalEngine:
         market = signal.condition_id or signal.market_id
         now = time.time()
 
+        # Cooldown + existing position checks
+        if self.is_on_cooldown(signal.wallet, market):
+            logger.info("Suppressed: fast-track from %s on %s (cooldown)", signal.alias, market[:16])
+            return None
+        if self.has_open_position_on_market(market):
+            logger.info("Suppressed: fast-track from %s — already have position on %s", signal.alias, market[:16])
+            return None
+
         if market in self._recent_opportunities:
             if now - self._recent_opportunities[market] < self._dedup_window:
                 return None
@@ -523,6 +609,11 @@ class SignalEngine:
         for key in list(self._recent_opportunities.keys()):
             if now - self._recent_opportunities[key] > self._dedup_window * 5:
                 del self._recent_opportunities[key]
+
+        # Clean up expired signal cooldowns
+        for key in list(self._signal_cooldowns.keys()):
+            if now >= self._signal_cooldowns[key]:
+                del self._signal_cooldowns[key]
 
     async def shutdown(self) -> None:
         """Close HTTP session."""

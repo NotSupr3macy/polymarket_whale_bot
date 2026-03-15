@@ -74,6 +74,8 @@ class WhaleBot:
         self.risk = RiskManager(config, config.INITIAL_BANKROLL)
         self.journal = TradeJournal(config.DB_PATH, dry_run=config.DRY_RUN)
         self.resolution_tracker = ResolutionTracker(config, self.journal)
+        # Give signal engine access to risk manager for open position checks
+        self.engine.set_risk_manager(self.risk)
         self._running = False
         self._tasks: list[asyncio.Task] = []
         self._start_time = 0.0
@@ -315,6 +317,15 @@ class WhaleBot:
             hours_to_resolution=opportunity.hours_to_resolution,
         )
         self.risk.register_entry(position)
+
+        # Set signal cooldown for all whales involved — prevents duplicate stacking
+        market_key = opportunity.condition_id or opportunity.market_id
+        for alias in opportunity.whale_aliases:
+            # Resolve alias back to wallet address
+            for wallet, info in WHALE_WATCHLIST.items():
+                if info["alias"] == alias:
+                    self.engine.set_cooldown(wallet, market_key, minutes=60)
+                    break
 
         # Send alert if configured
         stop_info = f"Stop: ${stop_price:.4f}" if opportunity.stop_loss_enabled else "HOLD TO RESOLUTION"

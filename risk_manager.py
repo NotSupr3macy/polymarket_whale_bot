@@ -250,14 +250,18 @@ class RiskManager:
         # Hard cap at MAX_POSITION_SIZE_PCT
         size = min(size, self.bankroll * self.config.MAX_POSITION_SIZE_PCT)
 
-        # Check single-market exposure limit
-        existing_exposure = sum(
-            p.size_usd for p in self.open_positions
-            if p.market_id == opportunity.market_id or p.condition_id == opportunity.condition_id
-        )
+        # Check single-market exposure limit — cap to remaining room
+        existing_exposure = self.get_market_exposure(opportunity.condition_id or opportunity.market_id)
         max_market_exposure = self.bankroll * self.config.MAX_SINGLE_MARKET_EXPOSURE
-        if existing_exposure + size > max_market_exposure:
-            size = max(0.0, max_market_exposure - existing_exposure)
+        remaining_room = max_market_exposure - existing_exposure
+        if remaining_room <= self.config.MIN_TRADE_SIZE_USD:
+            logger.info(
+                "No room left on %s ($%.0f of $%.0f used)",
+                (opportunity.condition_id or opportunity.market_id)[:16],
+                existing_exposure, max_market_exposure,
+            )
+            return 0.0
+        size = min(size, remaining_room)
 
         # Minimum trade size check
         if size < self.config.MIN_TRADE_SIZE_USD:
@@ -384,14 +388,13 @@ class RiskManager:
                 if opportunity.n_whales < 2:
                     return False, "Last slot(s) reserved for consensus trades"
 
-            # Market-level exposure: group by market_id/condition_id, not token_id
-            existing_market_exposure = sum(
-                p.size_usd for p in self.open_positions
-                if p.market_id == opportunity.market_id or p.condition_id == opportunity.condition_id
-            )
+            # Market-level exposure: group by condition_id (YES and NO are same market)
+            market_key = opportunity.condition_id or opportunity.market_id
+            existing_market_exposure = self.get_market_exposure(market_key)
             max_market = self.bankroll * self.config.MAX_SINGLE_MARKET_EXPOSURE
-            if existing_market_exposure >= max_market:
-                return False, f"Market exposure limit for {opportunity.market_id[:20]}"
+            remaining = max_market - existing_market_exposure
+            if remaining <= self.config.MIN_TRADE_SIZE_USD:
+                return False, f"Market exposure limit for {market_key[:20]} (${existing_market_exposure:.0f}/${max_market:.0f})"
 
         return True, "OK"
 
@@ -480,6 +483,14 @@ class RiskManager:
     def calculate_stop_price(self, entry_price: float) -> float:
         """Calculate stop-loss price: entry * (1 - STOP_LOSS_PCT)."""
         return round(entry_price * (1.0 - self.config.STOP_LOSS_PCT), 4)
+
+    def get_market_exposure(self, market_id: str) -> float:
+        """Total dollars exposed to a specific market across ALL positions."""
+        return sum(
+            pos.size_usd
+            for pos in self.open_positions
+            if pos.market_id == market_id or pos.condition_id == market_id
+        )
 
     def get_total_exposure(self) -> float:
         """Total USD value of all open positions."""
