@@ -628,14 +628,31 @@ class WhaleBot:
     # ── Stop-loss loop ─────────────────────────────────────────────
 
     async def _stop_loss_loop(self) -> None:
-        """Periodically check open positions against stop-loss prices."""
+        """Periodically check positions: resolution FIRST, then stop-losses.
+
+        Resolution runs every 60s to avoid API spam.  Stop-losses run every 10s.
+        A market at $0.0005 should be caught as resolved (correct payout),
+        not stopped out at near-zero price.
+        """
+        resolution_counter = 0  # ticks at 10s each; 6 ticks = 60s
         while self._running:
             try:
                 await asyncio.sleep(10)  # Check every 10 seconds
 
                 if not self.risk.open_positions:
+                    resolution_counter = 0
                     continue
 
+                # ── Resolution check FIRST (every 60s) ──────────────
+                resolution_counter += 1
+                if resolution_counter >= 6:
+                    resolution_counter = 0
+                    try:
+                        await self._check_open_position_resolutions()
+                    except Exception as e:
+                        logger.error("Resolution check in stop-loss loop error: %s", e)
+
+                # ── Then stop-losses ─────────────────────────────────
                 # Get current prices for all open position tokens
                 current_prices = await self._fetch_current_prices()
                 if not current_prices:
@@ -748,13 +765,14 @@ class WhaleBot:
     # ── Resolution loop (Upgrade 3) ──────────────────────────────
 
     async def _resolution_loop(self) -> None:
-        """Periodically check for resolved markets and classify outcomes."""
+        """Periodically classify resolved trades in the journal DB.
+
+        NOTE: Open position resolution checks now run in _stop_loss_loop
+        every 60s (BEFORE stop-losses) so resolved markets aren't stopped out.
+        """
         while self._running:
             try:
                 await asyncio.sleep(RESOLUTION_CHECK_INTERVAL_SECONDS)
-
-                # Check open hold-to-resolution positions for market settlement
-                await self._check_open_position_resolutions()
 
                 resolved = await self.resolution_tracker.check_resolutions()
                 if resolved > 0:
@@ -767,30 +785,44 @@ class WhaleBot:
 
     async def _check_open_position_resolutions(self) -> None:
         """
-        Check if any open positions (especially hold-to-resolution) have settled.
-        If a market has resolved, close the position with the correct payout.
+        Check ALL open positions for market settlement.
+        Resolved markets should be closed via resolution (correct payout),
+        not via stop-loss (which would sell at near-zero market price).
         """
-        hold_positions = [
-            p for p in self.risk.open_positions if not p.stop_loss_enabled
-        ]
-        if not hold_positions:
+        if not self.risk.open_positions:
             return
 
         logger.info(
-            "Checking %d hold-to-resolution positions for settlement",
-            len(hold_positions),
+            "Checking %d open positions for market resolution",
+            len(self.risk.open_positions),
         )
 
-        for pos in hold_positions:
+        for pos in list(self.risk.open_positions):
             try:
                 resolution_data = await self.resolution_tracker._fetch_market_resolution(
                     pos.condition_id
                 )
+
+                # Debug: always log result for every position
+                cid_short = pos.condition_id[:12]
                 if not resolution_data:
+                    logger.warning(
+                        "  [RESOLUTION-DEBUG] %s (%s): API returned NO DATA",
+                        cid_short, pos.market_id[:30],
+                    )
                     continue
 
                 tokens = resolution_data.get("tokens", [])
+                closed = resolution_data.get("closed", False)
+                active = resolution_data.get("active", None)
                 has_winner = any(t.get("winner") is True for t in tokens)
+
+                logger.info(
+                    "  [RESOLUTION-DEBUG] %s (%s): closed=%s active=%s has_winner=%s tokens=%s",
+                    cid_short, pos.market_id[:30], closed, active, has_winner,
+                    [(t.get("outcome"), t.get("winner"), t.get("price")) for t in tokens],
+                )
+
                 if not has_winner:
                     continue
 
@@ -826,7 +858,7 @@ class WhaleBot:
                     f"Market: {market_title[:50]}\n"
                     f"Direction: {pos.direction}\n"
                     f"PnL: ${pnl:,.2f}\n"
-                    f"Entry: ${pos.entry_price:.3f} | Size: ${pos.position_size:,.2f}"
+                    f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}"
                 )
 
             except Exception as e:
