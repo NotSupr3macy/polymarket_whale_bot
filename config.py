@@ -198,19 +198,6 @@ WHALE_WATCHLIST: dict[str, dict[str, Any]] = {
         "source": "Predicts.guru full wallet analytics + Polymarket leaderboard March 2026",
         "notes": "81.6% win rate across 4,477 markets. The discipline benchmark.",
     },
-    "0x019782cab5d844f02bafb71f512758be78579f3c": {
-        "alias": "majorexploiter",
-        "tier": 1,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl_march_2026": 2_416_975,
-            "monthly_volume_march_2026": 6_949_025,
-            "biggest_win": 4_532_050,
-            "biggest_win_market": "Arsenal FC vs Chelsea FC",
-        },
-        "source": "Polymarket leaderboard #1 monthly profit, scraped March 11, 2026",
-        "notes": "#1 on the monthly leaderboard. Massive EPL sports bettor.",
-    },
     # ═══ TIER 2: HIGH PRIORITY (strong monthly performers) ═══
     "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": {
         "alias": "HorizonSplendidView",
@@ -267,6 +254,58 @@ WHALE_WATCHLIST: dict[str, dict[str, Any]] = {
             "monthly_volume": 17_580_704,
         },
         "source": "Polymarket leaderboard #6 monthly, March 11, 2026",
+    },
+    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": {
+        "alias": "bcda",
+        "tier": 2,
+        "category": "sports",
+        "solo_enabled": True,
+        "verified_stats": {
+            "monthly_pnl": 568_975,
+            "monthly_volume": 3_154_673,
+            "roi_on_volume": "18%",
+        },
+        "source": "Polymarket leaderboard #9 monthly, March 2026",
+        "notes": "High efficiency — $568K profit on $3.1M volume. Selective bettor.",
+    },
+    "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
+        "alias": "jtwyslljy",
+        "tier": 2,
+        "category": "sports",
+        "solo_enabled": True,
+        "verified_stats": {
+            "monthly_pnl": 517_807,
+            "monthly_volume": 1_699_397,
+            "roi_on_volume": "30%",
+        },
+        "source": "Polymarket leaderboard #10 monthly, March 2026",
+        "notes": "Best ROI efficiency in the top 20. Very selective, low volume, high hit rate.",
+    },
+    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
+        "alias": "gatorr",
+        "tier": 2,
+        "category": "sports",
+        "solo_enabled": True,
+        "verified_stats": {
+            "monthly_pnl": 389_134,
+            "monthly_volume": 2_021_224,
+            "win_rate": 0.68,
+        },
+        "source": "Polymarket leaderboard #12 + ScanWhale verified 68% win rate",
+        "notes": "68% verified win rate from ScanWhale. Sports specialist. Strong candidate.",
+    },
+    "0xc65ca4755436f82d8eb461e65781584b8cadea39": {
+        "alias": "UAEVALORANTFAN",
+        "tier": 2,
+        "category": "esports",
+        "solo_enabled": True,
+        "verified_stats": {
+            "monthly_pnl": 275_681,
+            "monthly_volume": 737_909,
+            "roi_on_volume": "37%",
+        },
+        "source": "Polymarket leaderboard #16 monthly, March 2026",
+        "notes": "Highest ROI in top 20 (37%). Likely esports specialist — gives off-hours coverage.",
     },
     # ═══ TIER 3: SIGNAL DIVERSIFICATION ═══
     "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
@@ -326,13 +365,16 @@ WHALE_AVG_BET: dict[str, float] = {
     # Tier 1
     "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": 41_700,   # ImJustKen: $417M / 10K positions
     "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 12_700,   # gmanas: verified avg from predicts.guru
-    "0x019782cab5d844f02bafb71f512758be78579f3c": 19_000,   # majorexploiter: $6.9M vol / ~365 est trades
     # Tier 2
     "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 15_000,   # HorizonSplendidView
     "0x2a2c53bd278c04da9962fcf96490e17f3dfb9bc1": 23_000,   # 0x2a2C...9Bc1
     "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": 10_000,   # MinorKey4
     "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": 12_000,   # joosangyoo
     "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 18_000,   # 432614799197
+    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 10_000,   # bcda
+    "0x9cb990f1862568a63d8601efeebe0304225c32f2": 8_000,    # jtwyslljy
+    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": 10_000,   # gatorr
+    "0xc65ca4755436f82d8eb461e65781584b8cadea39": 6_000,    # UAEVALORANTFAN
     # Tier 3
     "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": 8_000,    # beachboy4
     "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": 10_000,   # WoofMaster

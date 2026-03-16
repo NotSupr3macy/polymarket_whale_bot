@@ -35,13 +35,16 @@ WHALE_WIN_RATES: dict[str, float] = {
     # Tier 1
     "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": 0.633,  # ImJustKen
     "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 0.816,  # gmanas
-    "0x019782cab5d844f02bafb71f512758be78579f3c": 0.70,   # majorexploiter (est)
     # Tier 2
     "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 0.65,   # HorizonSplendidView (est)
     "0x2a2c53bd278c04da9962fcf96490e17f3dfb9bc1": 0.58,   # 0x2a2C...9Bc1 (est, downgraded: churner)
     "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": 0.64,   # MinorKey4 (est)
     "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": 0.61,   # joosangyoo (est)
     "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 0.60,   # 432614799197 (est)
+    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 0.62,   # bcda (estimated from ROI)
+    "0x9cb990f1862568a63d8601efeebe0304225c32f2": 0.65,   # jtwyslljy (high efficiency = high WR)
+    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": 0.68,   # gatorr (verified by ScanWhale)
+    "0xc65ca4755436f82d8eb461e65781584b8cadea39": 0.64,   # UAEVALORANTFAN (estimated from ROI)
     # Tier 3
     "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": 0.63,   # beachboy4 (est)
     "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": 0.62,   # WoofMaster (est)
