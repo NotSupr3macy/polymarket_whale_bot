@@ -1,0 +1,32 @@
+{
+  "resolved_issues": [
+    {
+      "id": "near_zero_stops_v1",
+      "description": "6 stop-losses fired at near-zero prices before resolution checker could run",
+      "fix_applied": "Added NEAR_ZERO_THRESHOLD=0.02 guard in bot.py _stop_loss_loop + resolution now runs every 10s (every tick)",
+      "date_fixed": "2026-03-17",
+      "affects_historical_data": true,
+      "note": "Old trades in DB still show exit_reason=stop_loss with near-zero prices. These are HISTORICAL and already accounted for."
+    },
+    {
+      "id": "bad_whales_removed_v1",
+      "description": "MinorKey4 (0W/6L), 0x2a2C (0W/3L), joosangyoo (1W/7L) underperforming",
+      "fix_applied": "Removed from whales.json watchlist. Auto-rotation system now handles future removals.",
+      "date_fixed": "2026-03-17",
+      "affects_historical_data": true,
+      "note": "Their old trades still appear in DB stats but they will NOT generate new trades."
+    },
+    {
+      "id": "resolution_cadence_v1",
+      "description": "Resolution check ran every 20s while stop-loss ran every 10s, leaving a gap",
+      "fix_applied": "Resolution now runs every 10s (every tick), same as stop-loss. No gap.",
+      "date_fixed": "2026-03-17"
+    },
+    {
+      "id": "tier2_solo_disabled",
+      "description": "Low win rate driven by Tier 2/3 solo trades",
+      "fix_applied": "TIER2_SOLO_ENABLED=False, TIER3_SOLO_ENABLED=False, TIER1_SOLO_MIN_USD=15000",
+      "date_fixed": "2026-03-17"
+    }
+  ]
+}

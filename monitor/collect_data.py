@@ -165,6 +165,14 @@ def collect() -> str:
     report["resolution_health"] = resolution_stats
     report["log_health"] = log_health
 
+    # ── Known Issues (already fixed — skip re-alerting) ─────────────
+    known_issues_path = "monitor/known_issues.json"
+    if os.path.exists(known_issues_path):
+        with open(known_issues_path) as f:
+            report["known_issues"] = json.load(f).get("resolved_issues", [])
+    else:
+        report["known_issues"] = []
+
     report["open_positions"] = [
         {
             "id": p["id"],

@@ -65,6 +65,13 @@ After analysis, output a JSON object:
   "telegram_summary": "A concise 5-10 line summary suitable for Telegram"
 }}
 
+## KNOWN ISSUES (ALREADY FIXED — DO NOT RE-ALERT)
+The report includes a "known_issues" array of problems that have ALREADY been
+fixed. Do NOT flag these again in your alerts or Telegram summary, even if the
+historical data still shows traces of them (e.g., old near-zero stop-losses in
+the DB, or old trades from removed whales). Only alert on NEW problems that are
+not in the known_issues list.
+
 ## DAILY REPORT DATA
 
 ```json

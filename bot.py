@@ -630,28 +630,23 @@ class WhaleBot:
     async def _stop_loss_loop(self) -> None:
         """Periodically check positions: resolution FIRST, then stop-losses.
 
-        Resolution runs every 20s (2 ticks) to minimize the window where a
-        stop-loss can fire before resolution is caught.  Stop-losses run every 10s.
+        Resolution runs every 10s (every tick) to eliminate the window where a
+        stop-loss can fire before resolution is caught.  Both checks run at 10s.
         A market at $0.0005 should be caught as resolved (correct payout),
         not stopped out at near-zero price.
         """
-        resolution_counter = 0  # ticks at 10s each; 2 ticks = 20s
         while self._running:
             try:
                 await asyncio.sleep(10)  # Check every 10 seconds
 
                 if not self.risk.open_positions:
-                    resolution_counter = 0
                     continue
 
-                # ── Resolution check FIRST (every 20s) ──────────────
-                resolution_counter += 1
-                if resolution_counter >= 2:
-                    resolution_counter = 0
-                    try:
-                        await self._check_open_position_resolutions()
-                    except Exception as e:
-                        logger.error("Resolution check in stop-loss loop error: %s", e)
+                # ── Resolution check FIRST (every tick) ──────────────
+                try:
+                    await self._check_open_position_resolutions()
+                except Exception as e:
+                    logger.error("Resolution check in stop-loss loop error: %s", e)
 
                 # ── Then stop-losses ─────────────────────────────────
                 # Get current prices for all open position tokens
