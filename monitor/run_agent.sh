@@ -22,105 +22,53 @@ if [ -f ".env" ]; then
     export $(grep -v '^#' .env | grep -v '^$' | xargs)
 fi
 
-LOG="monitor/logs/agent_$(date +%Y%m%d_%H%M).log"
+TIMESTAMP=$(date +%Y%m%d_%H%M)
+LOG="monitor/logs/agent_${TIMESTAMP}.log"
+OUTPUT_FILE="monitor/reports/agent_output_${TIMESTAMP}.json"
 mkdir -p monitor/logs monitor/pending monitor/reports
 
 echo "$(date): Starting monitoring agent" >> "$LOG"
 
 # ── Step 1: Collect data ──────────────────────────────────────────
 echo "$(date): Collecting data..." >> "$LOG"
-REPORT_PATH=$(python3 monitor/collect_data.py 2>> "$LOG")
+python3 monitor/collect_data.py 2>> "$LOG"
 echo "$(date): Report generated" >> "$LOG"
 
 # ── Step 2: Build prompt ─────────────────────────────────────────
 PROMPT=$(python3 monitor/agent_prompt.py monitor/reports/latest.json 2>> "$LOG")
 
-# ── Step 3: Run Claude Code ──────────────────────────────────────
+# ── Step 3: Run Claude Code with Tier 1 permissions ──────────────
+# Grant Bash + Write access so the agent can do Tier 1 auto-fixes:
+#   - sqlite3 queries/updates on trades.db
+#   - mkdir, file writes to monitor/pending/
+#   - log file cleanup
+# The tiered prompt constrains WHAT it does; these flags let it DO things.
 echo "$(date): Running Claude Code analysis..." >> "$LOG"
-CLAUDE_OUTPUT=$(echo "$PROMPT" | claude -p --output-format json 2>> "$LOG" || echo '{"error": "claude command failed"}')
+echo "$PROMPT" | claude -p \
+    --output-format json \
+    --allowedTools "Bash(sqlite3:*)" "Bash(mkdir:*)" "Bash(rm:monitor/*)" "Bash(ls:*)" "Bash(find:monitor/*)" "Bash(cat:*)" \
+    "Write(monitor/pending/*)" "Write(monitor/reports/*)" \
+    > "$OUTPUT_FILE" 2>> "$LOG" \
+    || echo '{"type":"result","result":"claude command failed"}' > "$OUTPUT_FILE"
 
-# Save full output for audit trail
-echo "$CLAUDE_OUTPUT" > "monitor/reports/agent_output_$(date +%Y%m%d_%H%M).json"
-echo "$(date): Claude Code output saved" >> "$LOG"
+echo "$(date): Claude Code output saved to $OUTPUT_FILE" >> "$LOG"
 
 # ── Step 4: Extract Telegram summary and send ────────────────────
-# claude --output-format json wraps output in {"type":"result","result":"..."}
-# The inner result text contains a ```json ... ``` block with the actual report.
-TELEGRAM_MSG=$(echo "$CLAUDE_OUTPUT" | python3 -c "
-import sys, json, re
-try:
-    wrapper = json.load(sys.stdin)
+# Uses standalone parser to avoid bash string escaping issues
+TELEGRAM_MSG=$(python3 monitor/parse_output.py "$OUTPUT_FILE" --telegram 2>> "$LOG")
 
-    # Extract inner result text from Claude's JSON envelope
-    inner_text = wrapper.get('result', '') if isinstance(wrapper, dict) else ''
-
-    # Try to find a JSON block in the inner text (```json ... ```)
-    match = re.search(r'\`\`\`json\s*\n(.*?)\n\`\`\`', inner_text, re.DOTALL)
-    if match:
-        data = json.loads(match.group(1))
-    else:
-        # Maybe the result IS the JSON directly
-        data = json.loads(inner_text) if inner_text else wrapper
-
-    msg = data.get('telegram_summary', 'Agent ran but no summary generated.')
-
-    # Add critical alerts
-    alerts = data.get('alerts', [])
-    critical = [a for a in alerts if a.get('severity') == 'critical']
-    if critical:
-        msg += '\n\n🚨 CRITICAL ALERTS:'
-        for a in critical:
-            msg += f\"\n- {a['message']}\"
-
-    # Add pending proposals
-    proposals = data.get('tier2_proposals', [])
-    if proposals:
-        msg += f'\n\n📋 {len(proposals)} change(s) pending your review'
-        for p in proposals:
-            msg += f\"\n- {p['proposal']}\"
-
-    # Add tier 1 actions taken
-    actions = data.get('tier1_actions', [])
-    if actions:
-        msg += f'\n\n🔧 {len(actions)} auto-fix(es) applied'
-        for a in actions:
-            msg += f\"\n- {a['action']}: {a['status']}\"
-
-    print(msg)
-except Exception as e:
-    print(f'Agent report parse error: {e}')
-" 2>> "$LOG")
-
-# Send to Telegram
 if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    # Send without parse_mode to avoid HTML/markdown breaking on special chars
     curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-        -d chat_id="$TELEGRAM_CHAT_ID" \
-        -d text="🤖 DAILY AGENT REPORT
+        --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=🤖 DAILY AGENT REPORT
 ${TELEGRAM_MSG}" \
         > /dev/null 2>> "$LOG"
     echo "$(date): Telegram alert sent" >> "$LOG"
 fi
 
 # ── Step 5: Check if Tier 1 actions require a bot restart ────────
-NEEDS_RESTART=$(echo "$CLAUDE_OUTPUT" | python3 -c "
-import sys, json, re
-try:
-    wrapper = json.load(sys.stdin)
-    inner_text = wrapper.get('result', '') if isinstance(wrapper, dict) else ''
-    match = re.search(r'\`\`\`json\s*\n(.*?)\n\`\`\`', inner_text, re.DOTALL)
-    if match:
-        data = json.loads(match.group(1))
-    else:
-        data = json.loads(inner_text) if inner_text else wrapper
-    actions = data.get('tier1_actions', [])
-    for a in actions:
-        if 'resolve' in a.get('action', '').lower() and a.get('status') == 'done':
-            print('yes')
-            sys.exit(0)
-    print('no')
-except Exception:
-    print('no')
-" 2>> "$LOG")
+NEEDS_RESTART=$(python3 monitor/parse_output.py "$OUTPUT_FILE" --needs-restart 2>> "$LOG")
 
 if [ "$NEEDS_RESTART" = "yes" ]; then
     echo "$(date): Tier 1 changes require bot restart" >> "$LOG"
@@ -131,7 +79,7 @@ if [ "$NEEDS_RESTART" = "yes" ]; then
 fi
 
 # ── Step 6: Check for pending Tier 2 proposals ───────────────────
-PENDING_COUNT=$(ls -1 monitor/pending/*.py monitor/pending/*.patch 2>/dev/null | wc -l || echo 0)
+PENDING_COUNT=$(ls -1 monitor/pending/*.py monitor/pending/*.patch monitor/pending/*.md 2>/dev/null | wc -l || echo 0)
 if [ "$PENDING_COUNT" -gt "0" ]; then
     echo "$(date): $PENDING_COUNT Tier 2 proposals pending review in monitor/pending/" >> "$LOG"
 fi
