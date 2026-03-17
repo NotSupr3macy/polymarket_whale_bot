@@ -97,7 +97,6 @@ if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
         -d chat_id="$TELEGRAM_CHAT_ID" \
         -d text="🤖 DAILY AGENT REPORT
 ${TELEGRAM_MSG}" \
-        -d parse_mode="HTML" \
         > /dev/null 2>> "$LOG"
     echo "$(date): Telegram alert sent" >> "$LOG"
 fi

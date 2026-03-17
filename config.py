@@ -74,13 +74,13 @@ class BotConfig:
     # Needed because these whales trade in different niches and rarely overlap.
     # Lowered from $25K after 12h dry run showed gmanas avg bet is $12.7K.
     TIER1_SOLO_ENABLED: bool = True
-    TIER1_SOLO_MIN_USD: float = 8_000  # Only on whale trades > $8K
+    TIER1_SOLO_MIN_USD: float = 15_000  # Only on whale trades > $15K (high conviction only)
     TIER1_SOLO_POSITION_MULT: float = 0.40  # 40% of normal position size
 
     # ── Tier 2 Solo Trade Parameters ───────────────────────────────
     # Tier 2 whales can also solo trade but need larger trades and get smaller size.
     # Lowered from $50K after 12h dry run — real trades were $4K-$13K.
-    TIER2_SOLO_ENABLED: bool = True
+    TIER2_SOLO_ENABLED: bool = False  # Disabled: solo trades from T2 whales generated majority of losses
     TIER2_SOLO_MIN_USD: float = 10_000  # Only on whale trades > $10K
     TIER2_SOLO_POSITION_MULT: float = 0.25  # 25% of normal position size
 
@@ -88,7 +88,7 @@ class BotConfig:
     # Tier 3 whales (Whale_Beta 67% WR, WoofMaster, beachboy4) can solo trade
     # on large bets. Added after 12h dry run showed 0 trades — Tier 3 whales
     # were the most active but had no path to generate trades.
-    TIER3_SOLO_ENABLED: bool = True
+    TIER3_SOLO_ENABLED: bool = False  # Disabled: solo trades from T3 whales generated majority of losses
     TIER3_SOLO_MIN_USD: float = 15_000  # Only on whale trades > $15K
     TIER3_SOLO_POSITION_MULT: float = 0.20  # 20% of normal position size
 
