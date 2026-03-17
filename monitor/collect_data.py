@@ -11,7 +11,7 @@ import glob
 import json
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -19,7 +19,7 @@ def collect() -> str:
     """Gather all bot data into a structured JSON report. Returns report path."""
 
     report: dict = {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "period": "last_24h",
     }
 
@@ -38,7 +38,7 @@ def collect() -> str:
     ]
 
     # Recent closed (last 24h)
-    yesterday = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     recent_closed = [t for t in all_closed if (t.get("exit_time") or "") > yesterday]
 
     # Open positions
@@ -51,7 +51,7 @@ def collect() -> str:
     ]
 
     # Stale positions (open > 48 hours)
-    cutoff_48h = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+    cutoff_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
     stale_positions = [p for p in open_positions if p["entry_time"] < cutoff_48h]
 
     conn.close()
@@ -104,7 +104,7 @@ def collect() -> str:
                 "entry_time": p["entry_time"],
                 "hours_open": round(
                     (
-                        datetime.utcnow()
+                        datetime.now(timezone.utc)
                         - datetime.fromisoformat(p["entry_time"])
                     ).total_seconds()
                     / 3600,
@@ -167,7 +167,7 @@ def collect() -> str:
             "stop_loss_enabled": p.get("stop_loss_enabled"),
             "hours_open": round(
                 (
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                     - datetime.fromisoformat(p["entry_time"])
                 ).total_seconds()
                 / 3600,
@@ -179,7 +179,7 @@ def collect() -> str:
 
     # Save report
     os.makedirs("monitor/reports", exist_ok=True)
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     report_path = f"monitor/reports/report_{date_str}.json"
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2, default=str)

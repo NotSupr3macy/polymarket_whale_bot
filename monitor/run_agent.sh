@@ -44,10 +44,24 @@ echo "$CLAUDE_OUTPUT" > "monitor/reports/agent_output_$(date +%Y%m%d_%H%M).json"
 echo "$(date): Claude Code output saved" >> "$LOG"
 
 # ── Step 4: Extract Telegram summary and send ────────────────────
+# claude --output-format json wraps output in {"type":"result","result":"..."}
+# The inner result text contains a ```json ... ``` block with the actual report.
 TELEGRAM_MSG=$(echo "$CLAUDE_OUTPUT" | python3 -c "
-import sys, json
+import sys, json, re
 try:
-    data = json.load(sys.stdin)
+    wrapper = json.load(sys.stdin)
+
+    # Extract inner result text from Claude's JSON envelope
+    inner_text = wrapper.get('result', '') if isinstance(wrapper, dict) else ''
+
+    # Try to find a JSON block in the inner text (```json ... ```)
+    match = re.search(r'\`\`\`json\s*\n(.*?)\n\`\`\`', inner_text, re.DOTALL)
+    if match:
+        data = json.loads(match.group(1))
+    else:
+        # Maybe the result IS the JSON directly
+        data = json.loads(inner_text) if inner_text else wrapper
+
     msg = data.get('telegram_summary', 'Agent ran but no summary generated.')
 
     # Add critical alerts
@@ -73,8 +87,8 @@ try:
             msg += f\"\n- {a['action']}: {a['status']}\"
 
     print(msg)
-except Exception:
-    print('Agent report failed to parse. Check logs.')
+except Exception as e:
+    print(f'Agent report parse error: {e}')
 " 2>> "$LOG")
 
 # Send to Telegram
@@ -90,11 +104,16 @@ fi
 
 # ── Step 5: Check if Tier 1 actions require a bot restart ────────
 NEEDS_RESTART=$(echo "$CLAUDE_OUTPUT" | python3 -c "
-import sys, json
+import sys, json, re
 try:
-    data = json.load(sys.stdin)
+    wrapper = json.load(sys.stdin)
+    inner_text = wrapper.get('result', '') if isinstance(wrapper, dict) else ''
+    match = re.search(r'\`\`\`json\s*\n(.*?)\n\`\`\`', inner_text, re.DOTALL)
+    if match:
+        data = json.loads(match.group(1))
+    else:
+        data = json.loads(inner_text) if inner_text else wrapper
     actions = data.get('tier1_actions', [])
-    # Only restart if positions were force-resolved (DB changed)
     for a in actions:
         if 'resolve' in a.get('action', '').lower() and a.get('status') == 'done':
             print('yes')
