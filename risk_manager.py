@@ -37,9 +37,7 @@ WHALE_WIN_RATES: dict[str, float] = {
     "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 0.816,  # gmanas
     # Tier 2
     "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 0.65,   # HorizonSplendidView (est)
-    "0x2a2c53bd278c04da9962fcf96490e17f3dfb9bc1": 0.58,   # 0x2a2C...9Bc1 (est, downgraded: churner)
-    "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": 0.64,   # MinorKey4 (est)
-    "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": 0.61,   # joosangyoo (est)
+    # REMOVED: 0x2a2C (0W/3L), MinorKey4 (0W/6L), joosangyoo (1W/6L)
     "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 0.60,   # 432614799197 (est)
     "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 0.62,   # bcda (estimated from ROI)
     "0x9cb990f1862568a63d8601efeebe0304225c32f2": 0.65,   # jtwyslljy (high efficiency = high WR)
@@ -450,10 +448,16 @@ class RiskManager:
             len(self.open_positions),
         )
 
+    # Prices below this threshold are likely resolved markets, not real losses.
+    # Skip stop-loss and let the resolution checker handle them instead.
+    NEAR_ZERO_THRESHOLD: float = 0.02
+
     def check_stop_losses(self, current_prices: dict[str, float]) -> list[OpenPosition]:
         """
         Check all open positions against their stop prices.
         Skips positions in short-duration markets (stop_loss_enabled=False).
+        Skips near-zero prices (< $0.02) — those are likely resolved markets
+        that should be closed via resolution for correct payout, not stop-loss.
 
         Args:
             current_prices: {token_id: current_price}
@@ -469,6 +473,18 @@ class RiskManager:
 
             price = current_prices.get(pos.token_id)
             if price is None:
+                continue
+
+            # Near-zero price guard: market likely resolved — let resolution
+            # checker handle it for correct payout instead of selling at ~$0
+            if price < self.NEAR_ZERO_THRESHOLD:
+                logger.info(
+                    "NEAR-ZERO GUARD: skipping stop-loss for %s @ %.4f "
+                    "(< %.2f threshold, awaiting resolution)",
+                    pos.market_id[:20],
+                    price,
+                    self.NEAR_ZERO_THRESHOLD,
+                )
                 continue
 
             if price <= pos.stop_price:

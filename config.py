@@ -211,40 +211,9 @@ WHALE_WATCHLIST: dict[str, dict[str, Any]] = {
         },
         "source": "Polymarket leaderboard #2 monthly, March 11, 2026",
     },
-    "0x2a2c53bd278c04da9962fcf96490e17f3dfb9bc1": {
-        "alias": "0x2a2C...9Bc1",
-        "tier": 3,
-        "solo_enabled": False,  # Consensus-only: no solo trades from this wallet.
-                                # HF position cycler (sub-30-min holds, rapid exit/re-entry).
-                                # Source of ~20/28 orders and nearly all losses across
-                                # two dry-run sessions. Still counts toward 2-whale consensus.
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 1_524_382,
-            "monthly_volume": 23_137_298,
-        },
-        "source": "Polymarket leaderboard #3 monthly, March 11, 2026",
-    },
-    "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": {
-        "alias": "MinorKey4",
-        "tier": 2,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 782_822,
-            "monthly_volume": 2_800_445,
-        },
-        "source": "Polymarket leaderboard #4 monthly, March 11, 2026",
-    },
-    "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": {
-        "alias": "joosangyoo",
-        "tier": 2,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 634_820,
-            "monthly_volume": 5_233_264,
-        },
-        "source": "Polymarket leaderboard #7 monthly, March 11, 2026",
-    },
+    # REMOVED: 0x2a2C...9Bc1 — 0W/3L, HF churner, consensus losses
+    # REMOVED: MinorKey4 — 0W/6L, zero wins
+    # REMOVED: joosangyoo — 1W/6L, poor performance
     "0xdc876e6873772d38716fda7f2452a78d426d7ab6": {
         "alias": "432614799197",
         "tier": 2,
@@ -367,9 +336,7 @@ WHALE_AVG_BET: dict[str, float] = {
     "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 12_700,   # gmanas: verified avg from predicts.guru
     # Tier 2
     "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 15_000,   # HorizonSplendidView
-    "0x2a2c53bd278c04da9962fcf96490e17f3dfb9bc1": 23_000,   # 0x2a2C...9Bc1
-    "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": 10_000,   # MinorKey4
-    "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": 12_000,   # joosangyoo
+    # REMOVED: 0x2a2C, MinorKey4, joosangyoo (underperforming)
     "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 18_000,   # 432614799197
     "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 10_000,   # bcda
     "0x9cb990f1862568a63d8601efeebe0304225c32f2": 8_000,    # jtwyslljy
