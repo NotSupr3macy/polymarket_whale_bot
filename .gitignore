@@ -31,3 +31,8 @@ Thumbs.db
 
 # Exports
 trades_export.csv
+
+# Monitor agent runtime data (keep scripts, exclude output)
+monitor/reports/
+monitor/logs/
+monitor/pending/
