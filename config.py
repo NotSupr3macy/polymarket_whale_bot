@@ -8,6 +8,7 @@ Defaults are validated by walk-forward backtest:
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -158,193 +159,28 @@ class BotConfig:
 
 
 # ── Whale Watchlist ──────────────────────────────────────────────────
-# Real verified addresses from polymarket.com/leaderboard (March 11, 2026),
-# cross-referenced with Predicts.guru analytics and Phemex reports.
+# Loaded from whales.json (single source of truth).
+# Auto-rotation script (monitor/whale_rotation.py) manages additions/removals.
 
-WHALE_WATCHLIST: dict[str, dict[str, Any]] = {
-    # ═══ TIER 1: HIGHEST PRIORITY (massive volume + proven profitability) ═══
-    "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": {
-        "alias": "ImJustKen",
-        "tier": 1,
-        "category": "multi",
-        "verified_stats": {
-            "all_time_pnl": 2_618_357,
-            "win_rate": 0.633,
-            "total_positions": 10_000,
-            "volume_traded": 417_000_000,
-            "portfolio_value": 759_000,
-            "active_since": "December 2022",
-        },
-        "source": "Phemex Top 10 Report Jan 2026 + X/@phosphenq verification",
-        "notes": "Trades like a sniper. 10K+ positions. Top 20 all-time.",
-    },
-    "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": {
-        "alias": "gmanas",
-        "tier": 1,
-        "category": "sports_multi",
-        "verified_stats": {
-            "all_time_pnl": 2_530_000,
-            "win_rate": 0.816,
-            "total_markets": 4_477,
-            "volume_traded": 478_000_000,
-            "avg_entry_price": 0.57,
-            "avg_bet": 12_700,
-            "best_trade": 111_000,
-            "worst_trade": -42_400,
-            "open_positions": 300,
-            "portfolio_value": 823_000,
-            "buy_sell_ratio": "499:1",
-        },
-        "source": "Predicts.guru full wallet analytics + Polymarket leaderboard March 2026",
-        "notes": "81.6% win rate across 4,477 markets. The discipline benchmark.",
-    },
-    # ═══ TIER 2: HIGH PRIORITY (strong monthly performers) ═══
-    "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": {
-        "alias": "HorizonSplendidView",
-        "tier": 2,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 1_787_559,
-            "monthly_volume": 5_781_406,
-            "biggest_win": 1_169_502,
-            "biggest_win_market": "Man City vs Nottingham Forest",
-        },
-        "source": "Polymarket leaderboard #2 monthly, March 11, 2026",
-    },
-    # REMOVED: 0x2a2C...9Bc1 — 0W/3L, HF churner, consensus losses
-    # REMOVED: MinorKey4 — 0W/6L, zero wins
-    # REMOVED: joosangyoo — 1W/6L, poor performance
-    "0xdc876e6873772d38716fda7f2452a78d426d7ab6": {
-        "alias": "432614799197",
-        "tier": 2,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 693_454,
-            "monthly_volume": 17_580_704,
-        },
-        "source": "Polymarket leaderboard #6 monthly, March 11, 2026",
-    },
-    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": {
-        "alias": "bcda",
-        "tier": 2,
-        "category": "sports",
-        "solo_enabled": True,
-        "verified_stats": {
-            "monthly_pnl": 568_975,
-            "monthly_volume": 3_154_673,
-            "roi_on_volume": "18%",
-        },
-        "source": "Polymarket leaderboard #9 monthly, March 2026",
-        "notes": "High efficiency — $568K profit on $3.1M volume. Selective bettor.",
-    },
-    "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
-        "alias": "jtwyslljy",
-        "tier": 2,
-        "category": "sports",
-        "solo_enabled": True,
-        "verified_stats": {
-            "monthly_pnl": 517_807,
-            "monthly_volume": 1_699_397,
-            "roi_on_volume": "30%",
-        },
-        "source": "Polymarket leaderboard #10 monthly, March 2026",
-        "notes": "Best ROI efficiency in the top 20. Very selective, low volume, high hit rate.",
-    },
-    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
-        "alias": "gatorr",
-        "tier": 2,
-        "category": "sports",
-        "solo_enabled": True,
-        "verified_stats": {
-            "monthly_pnl": 389_134,
-            "monthly_volume": 2_021_224,
-            "win_rate": 0.68,
-        },
-        "source": "Polymarket leaderboard #12 + ScanWhale verified 68% win rate",
-        "notes": "68% verified win rate from ScanWhale. Sports specialist. Strong candidate.",
-    },
-    "0xc65ca4755436f82d8eb461e65781584b8cadea39": {
-        "alias": "UAEVALORANTFAN",
-        "tier": 2,
-        "category": "esports",
-        "solo_enabled": True,
-        "verified_stats": {
-            "monthly_pnl": 275_681,
-            "monthly_volume": 737_909,
-            "roi_on_volume": "37%",
-        },
-        "source": "Polymarket leaderboard #16 monthly, March 2026",
-        "notes": "Highest ROI in top 20 (37%). Likely esports specialist — gives off-hours coverage.",
-    },
-    # ═══ TIER 3: SIGNAL DIVERSIFICATION ═══
-    "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
-        "alias": "beachboy4",
-        "tier": 3,
-        "category": "sports",
-        "verified_stats": {
-            "monthly_pnl": 402_836,
-            "monthly_volume": 822_553,
-            "biggest_win_market": "Hawks vs Bucks",
-        },
-        "source": "Polymarket leaderboard #11 monthly, March 11, 2026",
-        "notes": "High ROI relative to volume — selective bettor.",
-    },
-    "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": {
-        "alias": "WoofMaster",
-        "tier": 3,
-        "category": "multi",
-        "verified_stats": {
-            "monthly_pnl": 571_305,
-            "monthly_volume": 1_549_559,
-        },
-        "source": "Polymarket leaderboard #8 monthly, March 11, 2026",
-    },
-    "0xd218e474776403a330142299f7796e8ba32eb5c9": {
-        "alias": "Whale_Beta",
-        "tier": 3,
-        "category": "multi",
-        "verified_stats": {
-            "all_time_pnl": 958_059,
-            "30d_volume": 1_175_602,
-            "win_rate": 0.67,
-            "total_positions": 420,
-        },
-        "source": "Phemex Top 10 Wallets Report, January 2026",
-    },
-    "0x39932ca2b7a1b8ab6cbf0b8f7419261b950ccded": {
-        "alias": "Andromeda1",
-        "tier": 3,
-        "category": "multi",
-        "verified_stats": {
-            "monthly_pnl": 219_807,
-            "monthly_volume": 818_226,
-        },
-        "source": "Polymarket leaderboard #20 monthly, March 11, 2026",
-    },
-}
+_WHALES_PATH = Path(__file__).parent / "whales.json"
+
+
+def _load_whales() -> dict[str, dict[str, Any]]:
+    """Load whale watchlist from JSON sidecar file."""
+    with open(_WHALES_PATH) as f:
+        return json.load(f)
+
+
+_WHALE_DATA: dict[str, dict[str, Any]] = _load_whales()
+
+WHALE_WATCHLIST: dict[str, dict[str, Any]] = _WHALE_DATA
 
 # Quick lookup sets by tier for fast-track logic
 TIER_1_WALLETS: set[str] = {
-    addr for addr, info in WHALE_WATCHLIST.items() if info["tier"] == 1
+    addr for addr, info in _WHALE_DATA.items() if info["tier"] == 1
 }
 
 # Per-whale average bet sizes for relative fast-track thresholds.
-# Sources: volume_traded / total_positions, or estimated from monthly data.
 WHALE_AVG_BET: dict[str, float] = {
-    # Tier 1
-    "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": 41_700,   # ImJustKen: $417M / 10K positions
-    "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 12_700,   # gmanas: verified avg from predicts.guru
-    # Tier 2
-    "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 15_000,   # HorizonSplendidView
-    # REMOVED: 0x2a2C, MinorKey4, joosangyoo (underperforming)
-    "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 18_000,   # 432614799197
-    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 10_000,   # bcda
-    "0x9cb990f1862568a63d8601efeebe0304225c32f2": 8_000,    # jtwyslljy
-    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": 10_000,   # gatorr
-    "0xc65ca4755436f82d8eb461e65781584b8cadea39": 6_000,    # UAEVALORANTFAN
-    # Tier 3
-    "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": 8_000,    # beachboy4
-    "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": 10_000,   # WoofMaster
-    "0xd218e474776403a330142299f7796e8ba32eb5c9": 8_000,    # Whale_Beta
-    "0x39932ca2b7a1b8ab6cbf0b8f7419261b950ccded": 6_000,    # Andromeda1
+    addr: info["avg_bet"] for addr, info in _WHALE_DATA.items()
 }

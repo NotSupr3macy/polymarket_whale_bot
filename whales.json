@@ -1,0 +1,223 @@
+{
+  "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": {
+    "alias": "ImJustKen",
+    "tier": 1,
+    "protected": true,
+    "category": "multi",
+    "solo_enabled": true,
+    "win_rate": 0.633,
+    "avg_bet": 41700,
+    "verified_stats": {
+      "all_time_pnl": 2618357,
+      "win_rate": 0.633,
+      "total_positions": 10000,
+      "volume_traded": 417000000,
+      "portfolio_value": 759000,
+      "active_since": "December 2022"
+    },
+    "source": "Phemex Top 10 Report Jan 2026 + X/@phosphenq verification",
+    "notes": "Trades like a sniper. 10K+ positions. Top 20 all-time.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": {
+    "alias": "gmanas",
+    "tier": 1,
+    "protected": true,
+    "category": "sports_multi",
+    "solo_enabled": true,
+    "win_rate": 0.816,
+    "avg_bet": 12700,
+    "verified_stats": {
+      "all_time_pnl": 2530000,
+      "win_rate": 0.816,
+      "total_markets": 4477,
+      "volume_traded": 478000000,
+      "avg_entry_price": 0.57,
+      "avg_bet": 12700,
+      "best_trade": 111000,
+      "worst_trade": -42400,
+      "open_positions": 300,
+      "portfolio_value": 823000,
+      "buy_sell_ratio": "499:1"
+    },
+    "source": "Predicts.guru full wallet analytics + Polymarket leaderboard March 2026",
+    "notes": "81.6% win rate across 4,477 markets. The discipline benchmark.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": {
+    "alias": "HorizonSplendidView",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.65,
+    "avg_bet": 15000,
+    "verified_stats": {
+      "monthly_pnl": 1787559,
+      "monthly_volume": 5781406,
+      "biggest_win": 1169502,
+      "biggest_win_market": "Man City vs Nottingham Forest"
+    },
+    "source": "Polymarket leaderboard #2 monthly, March 11, 2026",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xdc876e6873772d38716fda7f2452a78d426d7ab6": {
+    "alias": "432614799197",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.60,
+    "avg_bet": 18000,
+    "verified_stats": {
+      "monthly_pnl": 693454,
+      "monthly_volume": 17580704
+    },
+    "source": "Polymarket leaderboard #6 monthly, March 11, 2026",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xb45a797faa52b0fd8adc56d30382022b7b12192c": {
+    "alias": "bcda",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.62,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "monthly_pnl": 568975,
+      "monthly_volume": 3154673,
+      "roi_on_volume": "18%"
+    },
+    "source": "Polymarket leaderboard #9 monthly, March 2026",
+    "notes": "High efficiency — $568K profit on $3.1M volume. Selective bettor.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
+    "alias": "jtwyslljy",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.65,
+    "avg_bet": 8000,
+    "verified_stats": {
+      "monthly_pnl": 517807,
+      "monthly_volume": 1699397,
+      "roi_on_volume": "30%"
+    },
+    "source": "Polymarket leaderboard #10 monthly, March 2026",
+    "notes": "Best ROI efficiency in the top 20. Very selective, low volume, high hit rate.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
+    "alias": "gatorr",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.68,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "monthly_pnl": 389134,
+      "monthly_volume": 2021224,
+      "win_rate": 0.68
+    },
+    "source": "Polymarket leaderboard #12 + ScanWhale verified 68% win rate",
+    "notes": "68% verified win rate from ScanWhale. Sports specialist.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xc65ca4755436f82d8eb461e65781584b8cadea39": {
+    "alias": "UAEVALORANTFAN",
+    "tier": 2,
+    "protected": false,
+    "category": "esports",
+    "solo_enabled": true,
+    "win_rate": 0.64,
+    "avg_bet": 6000,
+    "verified_stats": {
+      "monthly_pnl": 275681,
+      "monthly_volume": 737909,
+      "roi_on_volume": "37%"
+    },
+    "source": "Polymarket leaderboard #16 monthly, March 2026",
+    "notes": "Highest ROI in top 20 (37%). Esports specialist — off-hours coverage.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
+    "alias": "beachboy4",
+    "tier": 3,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": false,
+    "win_rate": 0.63,
+    "avg_bet": 8000,
+    "verified_stats": {
+      "monthly_pnl": 402836,
+      "monthly_volume": 822553,
+      "biggest_win_market": "Hawks vs Bucks"
+    },
+    "source": "Polymarket leaderboard #11 monthly, March 11, 2026",
+    "notes": "High ROI relative to volume — selective bettor.",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": {
+    "alias": "WoofMaster",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.62,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "monthly_pnl": 571305,
+      "monthly_volume": 1549559
+    },
+    "source": "Polymarket leaderboard #8 monthly, March 11, 2026",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0xd218e474776403a330142299f7796e8ba32eb5c9": {
+    "alias": "Whale_Beta",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.67,
+    "avg_bet": 8000,
+    "verified_stats": {
+      "all_time_pnl": 958059,
+      "30d_volume": 1175602,
+      "win_rate": 0.67,
+      "total_positions": 420
+    },
+    "source": "Phemex Top 10 Wallets Report, January 2026",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  },
+  "0x39932ca2b7a1b8ab6cbf0b8f7419261b950ccded": {
+    "alias": "Andromeda1",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.60,
+    "avg_bet": 6000,
+    "verified_stats": {
+      "monthly_pnl": 219807,
+      "monthly_volume": 818226
+    },
+    "source": "Polymarket leaderboard #20 monthly, March 11, 2026",
+    "added_at": "2026-03-11",
+    "added_by": "manual"
+  }
+}

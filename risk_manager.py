@@ -22,35 +22,21 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from config import BotConfig, WHALE_WATCHLIST
+from config import BotConfig, WHALE_WATCHLIST, _WHALE_DATA
 from signal_engine import TradeOpportunity
 
 logger = logging.getLogger(__name__)
 
-# ── Whale Win Rates (from verified stats + leaderboard) ────────────
-# Used for Kelly Criterion sizing. Sources: predicts.guru, Polymarket leaderboard,
-# Phemex Top 10 Report. Addresses with unknown win rate get DEFAULT_WIN_RATE.
-
-WHALE_WIN_RATES: dict[str, float] = {
-    # Tier 1
-    "0x9d84ce0306f8551e02efef1680475fc0f1dc1344": 0.633,  # ImJustKen
-    "0xe90bec87d9ef430f27f9dcfe72c34b76967d5da2": 0.816,  # gmanas
-    # Tier 2
-    "0x02227b8f5a9636e895607edd3185ed6ee5598ff7": 0.65,   # HorizonSplendidView (est)
-    # REMOVED: 0x2a2C (0W/3L), MinorKey4 (0W/6L), joosangyoo (1W/6L)
-    "0xdc876e6873772d38716fda7f2452a78d426d7ab6": 0.60,   # 432614799197 (est)
-    "0xb45a797faa52b0fd8adc56d30382022b7b12192c": 0.62,   # bcda (estimated from ROI)
-    "0x9cb990f1862568a63d8601efeebe0304225c32f2": 0.65,   # jtwyslljy (high efficiency = high WR)
-    "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": 0.68,   # gatorr (verified by ScanWhale)
-    "0xc65ca4755436f82d8eb461e65781584b8cadea39": 0.64,   # UAEVALORANTFAN (estimated from ROI)
-    # Tier 3
-    "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": 0.63,   # beachboy4 (est)
-    "0x916f7165c2c836aba22edb6453cdbb5f3ea253ba": 0.62,   # WoofMaster (est)
-    "0xd218e474776403a330142299f7796e8ba32eb5c9": 0.67,   # Whale_Beta
-    "0x39932ca2b7a1b8ab6cbf0b8f7419261b950ccded": 0.60,   # Andromeda1 (est)
-}
+# ── Whale Win Rates (derived from whales.json) ────────────────────
+# Used for Kelly Criterion sizing. Loaded from the shared JSON config.
+# Whales without a win_rate field get DEFAULT_WIN_RATE.
 
 DEFAULT_WIN_RATE: float = 0.57
+
+WHALE_WIN_RATES: dict[str, float] = {
+    addr: info.get("win_rate", DEFAULT_WIN_RATE)
+    for addr, info in _WHALE_DATA.items()
+}
 KELLY_FRACTION: float = 0.25  # Quarter-Kelly for safety
 SLIPPAGE_DEGRADATION: float = 0.05  # 5% further reduction for slippage/timing
 

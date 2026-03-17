@@ -34,6 +34,23 @@ echo "$(date): Collecting data..." >> "$LOG"
 python3 monitor/collect_data.py 2>> "$LOG"
 echo "$(date): Report generated" >> "$LOG"
 
+# ── Step 1.5: Whale rotation check ───────────────────────────────
+# Deterministic: removes underperformers (<40% WR, 8+ trades),
+# replaces from Polymarket leaderboard to maintain 12 whales.
+echo "$(date): Checking whale rotation..." >> "$LOG"
+python3 monitor/whale_rotation.py >> "$LOG" 2>&1
+ROTATION_EXIT=$?
+
+if [ "$ROTATION_EXIT" -eq 2 ]; then
+    echo "$(date): Whale rotation applied — restarting bot" >> "$LOG"
+    bash deploy/stop.sh >> "$LOG" 2>&1
+    sleep 3
+    bash deploy/start.sh >> "$LOG" 2>&1
+    echo "$(date): Bot restarted after whale rotation" >> "$LOG"
+elif [ "$ROTATION_EXIT" -eq 1 ]; then
+    echo "$(date): Whale rotation error (non-fatal, continuing)" >> "$LOG"
+fi
+
 # ── Step 2: Build prompt ─────────────────────────────────────────
 PROMPT=$(python3 monitor/agent_prompt.py monitor/reports/latest.json 2>> "$LOG")
 
