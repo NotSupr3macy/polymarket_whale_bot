@@ -37,17 +37,11 @@ echo "$(date): Report generated" >> "$LOG"
 # ── Step 2: Build prompt ─────────────────────────────────────────
 PROMPT=$(python3 monitor/agent_prompt.py monitor/reports/latest.json 2>> "$LOG")
 
-# ── Step 3: Run Claude Code with Tier 1 permissions ──────────────
-# Grant Bash + Write access so the agent can do Tier 1 auto-fixes:
-#   - sqlite3 queries/updates on trades.db
-#   - mkdir, file writes to monitor/pending/
-#   - log file cleanup
-# The tiered prompt constrains WHAT it does; these flags let it DO things.
+# ── Step 3: Run Claude Code (analysis only) ──────────────────────
+# Agent analyzes data and outputs structured JSON with recommendations.
+# Tier 1 auto-fixes are proposed but applied by this script, not by Claude.
 echo "$(date): Running Claude Code analysis..." >> "$LOG"
-echo "$PROMPT" | claude -p \
-    --output-format json \
-    --allowedTools "Bash(sqlite3:*)" "Bash(mkdir:*)" "Bash(rm:monitor/*)" "Bash(ls:*)" "Bash(find:monitor/*)" "Bash(cat:*)" \
-    "Write(monitor/pending/*)" "Write(monitor/reports/*)" \
+echo "$PROMPT" | claude -p --output-format json \
     > "$OUTPUT_FILE" 2>> "$LOG" \
     || echo '{"type":"result","result":"claude command failed"}' > "$OUTPUT_FILE"
 

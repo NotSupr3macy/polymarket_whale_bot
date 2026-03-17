@@ -27,12 +27,38 @@ def extract_report(filepath: str) -> dict:
         return {}
 
     # Try to find a ```json ... ``` block in the text
-    match = re.search(r"```json\s*\n(.*?)\n```", inner_text, re.DOTALL)
+    # Be forgiving: allow optional whitespace around backticks
+    match = re.search(r"```json\s*\n(.*?)\n\s*```", inner_text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError:
             pass
+
+    # Try without the json language tag
+    match = re.search(r"```\s*\n(\{.*?\})\n\s*```", inner_text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # Try to find raw JSON object in the text (no code fence)
+    match = re.search(r'(\{"tier1_actions".*\})', inner_text, re.DOTALL)
+    if match:
+        # Find the matching closing brace
+        text = match.group(1)
+        depth = 0
+        for i, ch in enumerate(text):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[: i + 1])
+                    except json.JSONDecodeError:
+                        break
 
     # Fallback: maybe the result IS JSON directly
     try:
