@@ -15,6 +15,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
+def _aware(dt_str: str) -> datetime:
+    """Parse ISO datetime string and ensure it's timezone-aware (UTC)."""
+    dt = datetime.fromisoformat(dt_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def collect() -> str:
     """Gather all bot data into a structured JSON report. Returns report path."""
 
@@ -105,7 +113,7 @@ def collect() -> str:
                 "hours_open": round(
                     (
                         datetime.now(timezone.utc)
-                        - datetime.fromisoformat(p["entry_time"])
+                        - _aware(p["entry_time"])
                     ).total_seconds()
                     / 3600,
                     1,
@@ -168,7 +176,7 @@ def collect() -> str:
             "hours_open": round(
                 (
                     datetime.now(timezone.utc)
-                    - datetime.fromisoformat(p["entry_time"])
+                    - _aware(p["entry_time"])
                 ).total_seconds()
                 / 3600,
                 1,
