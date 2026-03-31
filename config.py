@@ -40,8 +40,8 @@ class BotConfig:
     CONSENSUS_RESERVED_SLOTS: int = 1
     # 10% single-market cap prevents ruin from correlated whale bets.
     MAX_SINGLE_MARKET_EXPOSURE: float = 0.10
-    # 15% stop-loss: EV per $1 = 0.57 * $0.82 - 0.43 * $0.40 = +$0.30.
-    STOP_LOSS_PCT: float = 0.15
+    # 20% stop-loss: wider to avoid STOPPED_EARLY on eventual winners in sports markets.
+    STOP_LOSS_PCT: float = 0.20
     MIN_TRADE_SIZE_USD: float = 5.0
     # Ignore whale trades below $3K — noise filter from leaderboard analysis.
     MIN_WHALE_TRADE_SIZE: float = 3000.0
@@ -75,14 +75,15 @@ class BotConfig:
     # Needed because these whales trade in different niches and rarely overlap.
     # Lowered from $25K after 12h dry run showed gmanas avg bet is $12.7K.
     TIER1_SOLO_ENABLED: bool = True
-    TIER1_SOLO_MIN_USD: float = 15_000  # Only on whale trades > $15K (high conviction only)
+    TIER1_SOLO_MIN_USD: float = 10_000  # Only on whale trades > $10K
     TIER1_SOLO_POSITION_MULT: float = 0.40  # 40% of normal position size
 
     # ── Tier 2 Solo Trade Parameters ───────────────────────────────
     # Tier 2 whales can also solo trade but need larger trades and get smaller size.
     # Lowered from $50K after 12h dry run — real trades were $4K-$13K.
-    TIER2_SOLO_ENABLED: bool = False  # Disabled: solo trades from T2 whales generated majority of losses
+    TIER2_SOLO_ENABLED: bool = True  # Re-enabled with whale-level win rate filter
     TIER2_SOLO_MIN_USD: float = 10_000  # Only on whale trades > $10K
+    TIER2_SOLO_MIN_WIN_RATE: float = 0.55  # Only allow solo from T2 whales with >= 55% win rate
     TIER2_SOLO_POSITION_MULT: float = 0.25  # 25% of normal position size
 
     # ── Tier 3 Solo Trade Parameters ───────────────────────────────

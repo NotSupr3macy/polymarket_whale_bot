@@ -80,24 +80,6 @@
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
-  "0xb45a797faa52b0fd8adc56d30382022b7b12192c": {
-    "alias": "bcda",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.62,
-    "avg_bet": 10000,
-    "verified_stats": {
-      "monthly_pnl": 568975,
-      "monthly_volume": 3154673,
-      "roi_on_volume": "18%"
-    },
-    "source": "Polymarket leaderboard #9 monthly, March 2026",
-    "notes": "High efficiency — $568K profit on $3.1M volume. Selective bettor.",
-    "added_at": "2026-03-11",
-    "added_by": "manual"
-  },
   "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
     "alias": "jtwyslljy",
     "tier": 2,

@@ -98,6 +98,10 @@ class SignalEngine:
         self._signals_processed = 0
         self._recent_opportunities: dict[str, float] = {}
         self._dedup_window = 60.0
+        # Market-level lock: prevents ANY second trade on a market we already committed to.
+        # Set immediately when opportunity is generated (before async execution completes).
+        self._market_locks: dict[str, float] = {}  # condition_id -> lock_time
+        self._market_lock_duration = 300.0  # 5 min lock
 
         # ── Signal cooldown: prevents duplicate stacking from chunked whale entries ──
         # Key: (whale_address, condition_id) -> expiry timestamp
@@ -141,13 +145,22 @@ class SignalEngine:
         )
 
     def has_open_position_on_market(self, condition_id: str) -> bool:
-        """Check if we already have any open position on this market."""
+        """Check if we already have any open position on this market,
+        OR if we recently generated an opportunity for it (market lock)."""
+        # Check market lock first (immediate, pre-execution)
+        lock_time = self._market_locks.get(condition_id)
+        if lock_time and (time.time() - lock_time) < self._market_lock_duration:
+            return True
         if self._risk_manager is None:
             return False
         for pos in self._risk_manager.open_positions:
             if pos.condition_id == condition_id or pos.market_id == condition_id:
                 return True
         return False
+
+    def lock_market(self, condition_id: str) -> None:
+        """Immediately lock a market when an opportunity is generated."""
+        self._market_locks[condition_id] = time.time()
 
     async def _ensure_session(self) -> None:
         """Lazy-init HTTP session for Gamma API calls."""
@@ -208,8 +221,16 @@ class SignalEngine:
             if signal.size_usd >= self.config.TIER1_SOLO_MIN_USD:
                 return self._solo_trade(signal, "TIER1_SOLO", self.config.TIER1_SOLO_POSITION_MULT)
 
-        # 4. Tier 2 solo trade
+        # 4. Tier 2 solo trade (only from whales with good win rates)
         if self.config.TIER2_SOLO_ENABLED and signal.tier == 2:
+            whale_wr = whale_config.get("win_rate", 0.50)
+            min_wr = getattr(self.config, "TIER2_SOLO_MIN_WIN_RATE", 0.55)
+            if whale_wr < min_wr:
+                logger.info(
+                    "Skipped T2 solo from %s (win_rate %.0f%% < %.0f%% min)",
+                    signal.alias, whale_wr * 100, min_wr * 100,
+                )
+                return None
             if signal.size_usd >= self.config.TIER2_SOLO_MIN_USD:
                 return self._solo_trade(signal, "TIER2_SOLO", self.config.TIER2_SOLO_POSITION_MULT)
 
@@ -343,6 +364,7 @@ class SignalEngine:
         self._recent_opportunities[market] = now
         self._opportunities_generated += 1
         self._pending[market] = []
+        self.lock_market(market)  # Prevent duplicate entries on same market
 
         logger.info(
             "CONSENSUS [EXACT]: %s %s (%.0f%% from %d whales: %s) | score=%.1f",
@@ -415,6 +437,7 @@ class SignalEngine:
 
             self._recent_opportunities[dedup_key] = now
             self._opportunities_generated += 1
+            self.lock_market(market)  # Prevent duplicate entries on same market
 
             logger.info(
                 "CONSENSUS [EVENT]: %s %s (event=%s, %d whales: %s) | 70%% size",
@@ -492,6 +515,7 @@ class SignalEngine:
 
         self._recent_opportunities[dedup_key] = now
         self._opportunities_generated += 1
+        self.lock_market(market)  # Prevent duplicate entries on same market
 
         logger.info(
             "%s: %s %s $%.0f by %s (tier %d, %.0f%% size)",
@@ -535,6 +559,7 @@ class SignalEngine:
 
         self._recent_opportunities[market] = now
         self._opportunities_generated += 1
+        self.lock_market(market)  # Prevent duplicate entries on same market
 
         logger.info(
             "FAST-TRACK: %s %s $%.0f by %s (Tier 1, 4x avg bet bypass)",
