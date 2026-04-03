@@ -46,6 +46,19 @@ class BotConfig:
     # Ignore whale trades below $3K — noise filter from leaderboard analysis.
     MIN_WHALE_TRADE_SIZE: float = 3000.0
 
+    # ── Entry Price Filter ───────────────────────────────────────────
+    # Only copy trades in the profitable range for small bankrolls.
+    # Below 0.25 = extreme longshot (win rate too low).
+    # Above 0.75 = margin too thin (risk $10 to win $3.33).
+    # Sweet spot is 0.30-0.65 where wins pay 1.5-3x and whale edge matters.
+    MIN_ENTRY_PRICE: float = 0.25
+    MAX_ENTRY_PRICE: float = 0.75
+
+    # ── Spread Magnitude Filter ──────────────────────────────────────
+    # Skip extreme spread bets (e.g. Team -14.5). These are coin flips
+    # regardless of team strength. Whale directional accuracy drops on these.
+    MAX_SPREAD_POINTS: float = 10.5
+
     # ── Execution Parameters (post-Feb 2026 Polymarket rules) ────────
     # Maker orders: 0% fee + rebates. Taker fees are ~1.56% — never use taker.
     USE_MAKER_ORDERS: bool = True

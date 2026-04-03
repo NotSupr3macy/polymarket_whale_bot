@@ -16,6 +16,7 @@ v3 additions:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from statistics import mean
@@ -120,6 +121,37 @@ class SignalEngine:
         """Set reference to risk manager for open position checks."""
         self._risk_manager = risk_manager
 
+    def _check_entry_price_filter(self, entry_price: float, direction: str, alias: str) -> bool:
+        """Reject trades outside the profitable entry price range."""
+        if entry_price < self.config.MIN_ENTRY_PRICE:
+            logger.info(
+                "Filtered: %s %s @ %.3f — below min entry %.2f (extreme longshot)",
+                alias, direction, entry_price, self.config.MIN_ENTRY_PRICE,
+            )
+            return False
+        if entry_price > self.config.MAX_ENTRY_PRICE:
+            logger.info(
+                "Filtered: %s %s @ %.3f — above max entry %.2f (margin too thin)",
+                alias, direction, entry_price, self.config.MAX_ENTRY_PRICE,
+            )
+            return False
+        return True
+
+    def _check_spread_filter(self, market_title: str, direction: str, alias: str) -> bool:
+        """Skip extreme spread bets that are essentially coin flips."""
+        if not market_title:
+            return True  # Can't filter without title, allow through
+        spread_match = re.search(r'Spread:.*?[(\-+](\d+\.?\d*)\)', market_title)
+        if spread_match:
+            spread_value = float(spread_match.group(1))
+            if spread_value > self.config.MAX_SPREAD_POINTS:
+                logger.info(
+                    "Filtered: %s %s — spread %.1f > max %.1f (extreme spread)",
+                    alias, direction, spread_value, self.config.MAX_SPREAD_POINTS,
+                )
+                return False
+        return True
+
     def is_on_cooldown(self, wallet: str, condition_id: str) -> bool:
         """Check if a whale+market pair is on signal cooldown."""
         key = (wallet, condition_id)
@@ -181,6 +213,17 @@ class SignalEngine:
 
         if signal.is_exit:
             return self._process_exit(signal)
+
+        # 0a. Entry price filter — reject extreme longshots and near-certainties
+        if signal.entry_price > 0 and not self._check_entry_price_filter(
+            signal.entry_price, signal.direction, signal.alias,
+        ):
+            return None
+
+        # 0b. Spread magnitude filter — reject extreme spreads (>10.5 points)
+        market_title = getattr(signal, "market_title", "") or ""
+        if not self._check_spread_filter(market_title, signal.direction, signal.alias):
+            return None
 
         # 1. Check fast-track (Tier 1 + huge relative size)
         if self._should_fast_track(signal):

@@ -1,11 +1,11 @@
 {
   "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
     "alias": "gatorr",
-    "tier": 1,
-    "protected": true,
+    "tier": 2,
+    "protected": false,
     "category": "sports",
     "solo_enabled": true,
-    "win_rate": 0.68,
+    "win_rate": 0.65,
     "avg_bet": 30000,
     "verified_stats": {
       "monthly_pnl": 1300000,
@@ -14,26 +14,8 @@
       "weekly_roi": "40%"
     },
     "source": "ScanWhale verified + Polymarket leaderboard March 2026",
-    "notes": "68% verified win rate. Sports specialist. $1.3M weekly, 40% ROI. Best performer in bot data (4/8 wins, profitable excluding consensus losses).",
+    "notes": "Demoted from T1. Good on O/U and moneylines, bad on extreme spreads. 68% ScanWhale WR.",
     "added_at": "2026-03-11",
-    "added_by": "manual"
-  },
-  "0xf195721ad850377c96cd634457c70cd9e8308057": {
-    "alias": "CERTuo",
-    "tier": 1,
-    "protected": true,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.65,
-    "avg_bet": 25000,
-    "verified_stats": {
-      "monthly_pnl": 1460000,
-      "monthly_volume": 2000000,
-      "weekly_roi": "72%"
-    },
-    "source": "Polymarket leaderboard March 2026",
-    "notes": "72% weekly ROI, $1.46M on $2M volume. Extremely selective.",
-    "added_at": "2026-03-31",
     "added_by": "manual"
   },
   "0x59a0744db1f39ff3afccd175f80e6e8dfc239a09": {
@@ -45,29 +27,47 @@
     "win_rate": 0.64,
     "avg_bet": 30000,
     "verified_stats": {
-      "monthly_pnl": 1200000,
-      "monthly_volume": 2900000,
-      "roi": "42%"
+      "weekly_pnl": 784000,
+      "weekly_volume": 349000,
+      "roi": "225%"
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "42% ROI, $1.2M on $2.9M volume. Efficient.",
+    "notes": "$784K weekly on $349K volume = 225% ROI. Extremely selective. REAL ADDRESS.",
     "added_at": "2026-03-31",
+    "added_by": "manual"
+  },
+  "0xf195721ad850377c96cd634457c70cd9e8308057": {
+    "alias": "nz8",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.66,
+    "avg_bet": 25000,
+    "verified_stats": {
+      "weekly_pnl": 1780000,
+      "weekly_volume": 1400000,
+      "roi": "129%"
+    },
+    "source": "Polymarket leaderboard April 2026",
+    "notes": "NEW. $1.78M weekly on $1.4M volume = 129% ROI. NHL specialist.",
+    "added_at": "2026-04-03",
     "added_by": "manual"
   },
   "0xbddf61af533ff524d27154e589d2d7a81510c684": {
     "alias": "Countryside",
-    "tier": 2,
+    "tier": 3,
     "protected": false,
     "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.62,
+    "solo_enabled": false,
+    "win_rate": 0.55,
     "avg_bet": 50000,
     "verified_stats": {
       "monthly_pnl": 2960000,
       "weekly_roi": "28%"
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "28% ROI, $2.96M weekly. Consistent high-volume sports bettor.",
+    "notes": "DEMOTED. 1/5 in bot, -$40.44. Bets extreme underdogs. Consensus only.",
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
@@ -80,12 +80,11 @@
     "win_rate": 0.62,
     "avg_bet": 30000,
     "verified_stats": {
-      "monthly_pnl": 928000,
-      "monthly_volume": 4400000,
-      "roi": "21%"
+      "weekly_pnl": 925000,
+      "weekly_volume": 1800000
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "$928K monthly on $4.4M volume, 21% ROI.",
+    "notes": "$925K weekly on $1.8M volume. REAL ADDRESS. EPL specialist.",
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
@@ -98,11 +97,11 @@
     "win_rate": 0.58,
     "avg_bet": 40000,
     "verified_stats": {
-      "monthly_pnl": 1190000,
-      "monthly_volume": 22000000
+      "weekly_pnl": 776000,
+      "weekly_volume": 1300000
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "$1.19M monthly on $22M volume. High volume, good for consensus.",
+    "notes": "$776K weekly on $1.3M volume. REAL ADDRESS.",
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
@@ -133,13 +132,13 @@
     "category": "sports",
     "solo_enabled": true,
     "win_rate": 0.62,
-    "avg_bet": 40000,
+    "avg_bet": 30000,
     "verified_stats": {
       "monthly_pnl": 2080000,
       "roi": "18%"
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "$2.08M monthly, 18% ROI. Consistent top-10 monthly.",
+    "notes": "Best whale in current run. 3/8, nearly break-even. Entries at $0.43-$0.52 sweet spot.",
     "added_at": "2026-03-14",
     "added_by": "manual"
   },
@@ -147,7 +146,7 @@
     "alias": "jtwyslljy",
     "tier": 2,
     "protected": false,
-    "category": "sports",
+    "category": "esports",
     "solo_enabled": true,
     "win_rate": 0.65,
     "avg_bet": 20000,
@@ -157,7 +156,7 @@
       "roi_on_volume": "30%"
     },
     "source": "Polymarket leaderboard #10 monthly, March 2026",
-    "notes": "$517K monthly on $1.7M volume. 30% ROI — best efficiency in top 20. Very selective.",
+    "notes": "Best single trade: M80 esports +$16.64 at $0.41 entry. Selective, high conviction.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -179,6 +178,24 @@
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
+  "0x6a72f61820b26b1fe4d956e17b6dc2a1ea3033ee": {
+    "alias": "kch123",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.65,
+    "avg_bet": 20000,
+    "verified_stats": {
+      "weekly_pnl": 708000,
+      "weekly_volume": 491000,
+      "roi": "144%"
+    },
+    "source": "Polymarket leaderboard April 2026",
+    "notes": "NEW. $708K weekly on $491K volume = 144% ROI. Very selective.",
+    "added_at": "2026-04-03",
+    "added_by": "manual"
+  },
   "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
     "alias": "beachboy4",
     "tier": 3,
@@ -192,7 +209,7 @@
       "monthly_volume": 822553
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "Volatile: -$2M then +$5.6M in one day. Consensus only. Do not follow solo.",
+    "notes": "Volatile. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -209,7 +226,7 @@
       "monthly_volume": 5781406
     },
     "source": "Polymarket leaderboard #2 monthly, March 2026",
-    "notes": "#1 weekly sports. Very large positions. Consensus only.",
+    "notes": "#1 weekly sports. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -222,7 +239,7 @@
     "win_rate": 0.58,
     "avg_bet": 50000,
     "source": "Bot observation data",
-    "notes": "76% directional accuracy in our data but rapid cycler. Consensus only.",
+    "notes": "76% directional accuracy but rapid cycler. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -239,7 +256,7 @@
       "weekly_pnl": 1450000
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "$1.45M weekly on $8.2M. Consensus only.",
+    "notes": "$1.2M weekly. REAL ADDRESS. Consensus only.",
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
@@ -252,7 +269,7 @@
     "win_rate": 0.57,
     "avg_bet": 25000,
     "source": "Bot observation data",
-    "notes": "0/6 observed in bot. Bayesian dropped to 57%. Consensus only — on probation.",
+    "notes": "On probation. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -265,7 +282,7 @@
     "win_rate": 0.58,
     "avg_bet": 30000,
     "source": "Bot observation data",
-    "notes": "0/5 observed. Man City, UFC, Nuggets all wrong. Consensus only — on probation.",
+    "notes": "On probation. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   }
