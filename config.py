@@ -48,11 +48,11 @@ class BotConfig:
 
     # ── Entry Price Filter ───────────────────────────────────────────
     # Only copy trades in the profitable range for small bankrolls.
-    # Below 0.25 = extreme longshot (win rate too low).
-    # Above 0.75 = margin too thin (risk $10 to win $3.33).
-    # Sweet spot is 0.30-0.65 where wins pay 1.5-3x and whale edge matters.
-    MIN_ENTRY_PRICE: float = 0.25
-    MAX_ENTRY_PRICE: float = 0.75
+    # Below 0.30 = longshot (win rate too low for copy-trading).
+    # Above 0.55 = margin too thin (data shows net negative above 0.55).
+    # Sweet spot is 0.35-0.50 where wins pay 1.8-2.9x and whale edge matters.
+    MIN_ENTRY_PRICE: float = 0.30
+    MAX_ENTRY_PRICE: float = 0.55
 
     # ── Spread Magnitude Filter ──────────────────────────────────────
     # Skip extreme spread bets (e.g. Team -14.5). These are coin flips

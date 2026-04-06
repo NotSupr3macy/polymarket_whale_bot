@@ -128,14 +128,17 @@ class ResolutionTracker:
                     trade_id, condition_id[:20], direction,
                 )
 
-            # ── Check cache first ──
+            # ── Check cache first (only resolved markets are cached) ──
             if condition_id in self._resolution_cache:
                 resolution_data = self._resolution_cache[condition_id]
                 logger.debug("  [%s] Using cached resolution data for %s...", trade_id, condition_id[:16])
             else:
                 resolution_data = await self._fetch_market_resolution(condition_id)
+                # Only cache if market has a winner — don't cache unresolved results
                 if resolution_data:
-                    self._resolution_cache[condition_id] = resolution_data
+                    tokens = resolution_data.get("tokens", [])
+                    if any(t.get("winner") is True for t in tokens):
+                        self._resolution_cache[condition_id] = resolution_data
 
             if not resolution_data:
                 logger.info(

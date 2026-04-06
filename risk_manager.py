@@ -42,7 +42,7 @@ SLIPPAGE_DEGRADATION: float = 0.05  # 5% further reduction for slippage/timing
 
 # ── Circuit Breaker Parameters ─────────────────────────────────────
 MAX_DRAWDOWN_PCT: float = 0.08  # 8% from peak triggers halt
-DRAWDOWN_COOLDOWN_HOURS: float = 24.0  # 24h cooldown before trading resumes
+DRAWDOWN_COOLDOWN_HOURS: float = 6.0  # 6h cooldown before trading resumes
 
 # ── Consensus Level Boost Multipliers ──────────────────────────────
 CONSENSUS_KELLY_BOOST: dict[str, float] = {
