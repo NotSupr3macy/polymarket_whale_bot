@@ -54,21 +54,21 @@
     "added_at": "2026-04-03",
     "added_by": "manual"
   },
-  "0xbddf61af533ff524d27154e589d2d7a81510c684": {
-    "alias": "Countryside",
-    "tier": 3,
+  "0x94f199fb7789f1aef7fff6b758d6b375100f4c7a": {
+    "alias": "KeyTransporter",
+    "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.55,
-    "avg_bet": 50000,
+    "solo_enabled": true,
+    "win_rate": 0.68,
+    "avg_bet": 30000,
     "verified_stats": {
-      "monthly_pnl": 2960000,
-      "weekly_roi": "28%"
+      "monthly_pnl": 1900000,
+      "win_rate": 0.68
     },
-    "source": "Polymarket leaderboard March 2026",
-    "notes": "DEMOTED. 1/5 in bot, -$40.44. Bets extreme underdogs. Consensus only.",
-    "added_at": "2026-03-31",
+    "source": "ScanWhale verified April 2026",
+    "notes": "WHALE tier on ScanWhale. 68% WR, $1.9M/month. Sports specialist.",
+    "added_at": "2026-04-06",
     "added_by": "manual"
   },
   "0x07921379f7b31ef93da634b688b2fe36897db778": {
@@ -260,30 +260,57 @@
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
-  "0xb90494d9a5d8f71f1930b2aa4b599f95c344c255": {
-    "alias": "MinorKey4",
-    "tier": 3,
+  "0x50b1db131a24a9d9450bbd0372a95d32ea88f076": {
+    "alias": "blindStaking",
+    "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.57,
+    "solo_enabled": true,
+    "win_rate": 0.64,
     "avg_bet": 25000,
-    "source": "Bot observation data",
-    "notes": "On probation. Consensus only.",
-    "added_at": "2026-03-11",
+    "verified_stats": {
+      "weekly_pnl": 1126000,
+      "weekly_volume": 621650
+    },
+    "source": "Polymarket leaderboard April 2026",
+    "notes": "NEW. $1.1M weekly on $622K vol. Soccer specialist. Won on Atletico vs Barcelona.",
+    "added_at": "2026-04-06",
     "added_by": "manual"
   },
-  "0x07b8e44b90cc3e91b8d5fe60ea810d2534638e25": {
-    "alias": "joosangyoo",
-    "tier": 3,
+  "0x2b3ff45c91540e46fae1e0c72f61f4b049453446": {
+    "alias": "Mentallyillgambld",
+    "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.58,
-    "avg_bet": 30000,
-    "source": "Bot observation data",
-    "notes": "On probation. Consensus only.",
-    "added_at": "2026-03-11",
+    "solo_enabled": true,
+    "win_rate": 0.66,
+    "avg_bet": 20000,
+    "verified_stats": {
+      "weekly_pnl": 909000,
+      "weekly_volume": 519000,
+      "roi": "175%"
+    },
+    "source": "Polymarket leaderboard April 2026",
+    "notes": "NEW. 175% ROI ($909K on $519K). Extremely selective — ideal for 0.30-0.55 range.",
+    "added_at": "2026-04-06",
+    "added_by": "manual"
+  },
+  "0xead152b855effa6b5b5837f53b24c0756830c76a": {
+    "alias": "elkmonkey",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.63,
+    "avg_bet": 25000,
+    "verified_stats": {
+      "weekly_pnl": 711000,
+      "weekly_volume": 2339000,
+      "roi": "30%"
+    },
+    "source": "Polymarket leaderboard April 2026",
+    "notes": "NEW. $711K on $2.3M vol. High activity, good for consensus signals.",
+    "added_at": "2026-04-06",
     "added_by": "manual"
   }
 }
