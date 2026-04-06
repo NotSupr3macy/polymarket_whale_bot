@@ -51,6 +51,7 @@ class WhaleSignal:
     timestamp: float
     tier: int
     category: str = ""
+    market_title: str = ""
     is_exit: bool = False
     exit_pct: float = 0.0  # 0.0 for entries, 0.0-1.0 for exits (1.0 = full exit)
 
@@ -227,13 +228,13 @@ class WhaleMonitor:
                         # 2-poll confirmed new position
                         delta_usd = pos.size * max(pos.avg_price, pos.cur_price, 0.01)
                         if delta_usd >= self.config.MIN_WHALE_TRADE_SIZE:
+                            meta = await self._resolve_market_meta(pos.condition_id)
                             signal = self._make_signal(
                                 wallet, info, pos, delta_usd,
                                 is_exit=False, exit_pct=0.0,
+                                market_title=meta.title,
                             )
                             await self.signal_queue.put(signal)
-                            # Resolve market title for log
-                            meta = await self._resolve_market_meta(pos.condition_id)
                             end_info = f" ends {meta.end_date[:10]}" if meta.end_date else ""
                             logger.info(
                                 'WHALE SIGNAL (confirmed): %s %s $%.0f on "%s" (%s%s) (tier %d)',
@@ -252,12 +253,13 @@ class WhaleMonitor:
                         price = max(pos.avg_price, pos.cur_price, 0.01)
                         delta_usd = share_delta * price
                         if delta_usd >= self.config.MIN_WHALE_TRADE_SIZE:
+                            meta = await self._resolve_market_meta(pos.condition_id)
                             signal = self._make_signal(
                                 wallet, info, pos, delta_usd,
                                 is_exit=False, exit_pct=0.0,
+                                market_title=meta.title,
                             )
                             await self.signal_queue.put(signal)
-                            meta = await self._resolve_market_meta(pos.condition_id)
                             end_info = f" ends {meta.end_date[:10]}" if meta.end_date else ""
                             logger.info(
                                 'WHALE INCREASE: %s %s +%.0f shares ($%.0f) on "%s" (%s%s)',
@@ -274,12 +276,13 @@ class WhaleMonitor:
                     pending_exit = self._pending_exit.get(wallet, {})
                     if key in pending_exit:
                         # 2-poll confirmed FULL exit
+                        meta = await self._resolve_market_meta(conf_pos.condition_id)
                         signal = self._make_signal(
                             wallet, info, conf_pos, conf_pos.size_usd,
                             is_exit=True, exit_pct=1.0,
+                            market_title=meta.title,
                         )
                         await self.signal_queue.put(signal)
-                        meta = await self._resolve_market_meta(conf_pos.condition_id)
                         logger.info(
                             'WHALE EXIT (100%%): %s closed %s ($%.0f) on "%s" (%s)',
                             info["alias"], conf_pos.outcome.upper(),
@@ -298,12 +301,13 @@ class WhaleMonitor:
                         delta_usd = share_delta * price
                         exit_pct = share_delta / conf_pos.size if conf_pos.size > 0 else 1.0
                         if delta_usd >= self.config.MIN_WHALE_TRADE_SIZE:
+                            meta = await self._resolve_market_meta(conf_pos.condition_id)
                             signal = self._make_signal(
                                 wallet, info, conf_pos, delta_usd,
                                 is_exit=True, exit_pct=exit_pct,
+                                market_title=meta.title,
                             )
                             await self.signal_queue.put(signal)
-                            meta = await self._resolve_market_meta(conf_pos.condition_id)
                             logger.info(
                                 'WHALE DECREASE (%.0f%%): %s %s -%.0f shares ($%.0f) on "%s" (%s)',
                                 exit_pct * 100,
@@ -331,6 +335,7 @@ class WhaleMonitor:
     def _make_signal(
         self, wallet: str, info: dict, pos: PositionSnapshot,
         size_usd: float, is_exit: bool, exit_pct: float,
+        market_title: str = "",
     ) -> WhaleSignal:
         """Create a WhaleSignal from a position snapshot."""
         return WhaleSignal(
@@ -345,6 +350,7 @@ class WhaleMonitor:
             timestamp=time.time(),
             tier=info["tier"],
             category=info.get("category", ""),
+            market_title=market_title,
             is_exit=is_exit,
             exit_pct=exit_pct,
         )

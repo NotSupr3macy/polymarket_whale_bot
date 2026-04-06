@@ -1,10 +1,10 @@
 {
   "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
     "alias": "gatorr",
-    "tier": 2,
+    "tier": 3,
     "protected": false,
     "category": "sports",
-    "solo_enabled": true,
+    "solo_enabled": false,
     "win_rate": 0.65,
     "avg_bet": 30000,
     "verified_stats": {
@@ -14,7 +14,7 @@
       "weekly_roi": "40%"
     },
     "source": "ScanWhale verified + Polymarket leaderboard March 2026",
-    "notes": "Demoted from T1. Good on O/U and moneylines, bad on extreme spreads. 68% ScanWhale WR.",
+    "notes": "DEMOTED T3. 6/16 in bot (37.5%). Keeps taking extreme spreads. Consensus only.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
@@ -130,7 +130,7 @@
     "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": true,
+    "solo_enabled": false,
     "win_rate": 0.62,
     "avg_bet": 30000,
     "verified_stats": {
@@ -138,7 +138,7 @@
       "roi": "18%"
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "Best whale in current run. 3/8, nearly break-even. Entries at $0.43-$0.52 sweet spot.",
+    "notes": "DEMOTED. 3/11 (21.4%) in bot. Consensus only now.",
     "added_at": "2026-03-14",
     "added_by": "manual"
   },
