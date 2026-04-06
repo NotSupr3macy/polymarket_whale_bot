@@ -57,6 +57,12 @@ def load_whales() -> dict:
 
 def save_whales(data: dict) -> None:
     """Atomically write whales.json (write .tmp, rename)."""
+    # Safety net: remove any empty or invalid wallet keys
+    invalid_keys = [k for k in data if not k or len(k) != 42 or not k.startswith("0x")]
+    for k in invalid_keys:
+        logger.warning("Removing invalid wallet key from whales.json: %r", k)
+        del data[k]
+
     # Backup current version
     if WHALES_PATH.exists():
         shutil.copy2(WHALES_PATH, WHALES_PATH.with_suffix(".json.bak"))
@@ -186,9 +192,14 @@ async def fetch_leaderboard_candidates(exclude_wallets: set[str]) -> list[dict]:
 
     candidates = []
     for entry in data:
-        addr = entry.get("address", "").lower()
+        addr = entry.get("address", "").lower().strip()
         pnl = entry.get("pnl", 0)
         volume = entry.get("volume", 0)
+
+        # Skip invalid addresses (must be 0x + 40 hex chars)
+        if not addr or len(addr) != 42 or not addr.startswith("0x"):
+            logger.warning("Skipping invalid address from leaderboard: %r", addr)
+            continue
 
         # Skip if already in watchlist
         if addr in exclude_wallets:
