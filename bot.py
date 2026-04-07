@@ -341,11 +341,27 @@ class WhaleBot:
                     self.engine.set_cooldown(wallet, market_key, minutes=60)
                     break
 
-        # Send alert if configured
+        # Send alert
         stop_info = f"Stop: ${stop_price:.4f}" if opportunity.stop_loss_enabled else "HOLD TO RESOLUTION"
+        # Determine trigger type for alert
+        _trigger = getattr(opportunity, "consensus_level", "CONSENSUS")
+        if opportunity.is_fast_track:
+            _trigger = "FAST_TRACK"
+        # Look up tier info for the primary whale
+        _whale_tiers = []
+        for _alias in opportunity.whale_aliases:
+            for _w_addr, _w_info in WHALE_WATCHLIST.items():
+                if _w_info["alias"] == _alias:
+                    _whale_tiers.append(f"{_alias} (T{_w_info.get('tier', '?')})")
+                    break
+            else:
+                _whale_tiers.append(_alias)
         await self._send_alert(
-            f"Trade: {opportunity.direction} ${size:.0f} on {opportunity.market_title or opportunity.market_id[:30]}\n"
-            f"Whales: {', '.join(opportunity.whale_aliases)} ({opportunity.consensus_pct:.0%})\n"
+            f"📈 <b>NEW TRADE</b>\n"
+            f"Direction: {opportunity.direction} | ${size:.0f}\n"
+            f"Market: {opportunity.market_title or opportunity.market_id[:30]}\n"
+            f"Whales: {', '.join(_whale_tiers)}\n"
+            f"Trigger: {_trigger} ({opportunity.consensus_pct:.0%} consensus)\n"
             f"Price: ${order.price:.4f} | {stop_info}"
         )
 
@@ -583,10 +599,23 @@ class WhaleBot:
 
             self._exits_followed += 1
 
+            # Get market title from journal for readable alert
+            _exit_title = ""
+            try:
+                _exit_trade = self.journal.get_trade(current_pos.trade_id)
+                if _exit_trade:
+                    _exit_title = _exit_trade.get("market_title", "")
+            except Exception:
+                pass
+            _exit_market = _exit_title[:50] if _exit_title else current_pos.market_id[:30]
+
             await self._send_alert(
-                f"WHALE EXIT FOLLOW: {reason}\n"
-                f"Shares: {shares_to_exit:.0f} | PnL: ${pnl:.2f}\n"
-                f"Market: {current_pos.market_id[:30]}"
+                f"🐋 <b>WHALE EXIT FOLLOW</b>\n"
+                f"{'Full exit' if exit_fraction >= 0.95 else f'Partial ({exit_fraction:.0%})'}\n"
+                f"Market: {_exit_market}\n"
+                f"Direction: {current_pos.direction}\n"
+                f"Shares: {shares_to_exit:.0f} | PnL: ${pnl:,.2f}\n"
+                f"Entry: ${current_pos.entry_price:.3f} → Exit: ${exit_price:.3f}"
             )
         else:
             logger.warning(
@@ -851,7 +880,7 @@ class WhaleBot:
         if not self.risk.open_positions:
             return
 
-        logger.info(
+        logger.debug(
             "Checking %d open positions for market resolution",
             len(self.risk.open_positions),
         )
