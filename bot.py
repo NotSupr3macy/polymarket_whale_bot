@@ -389,6 +389,15 @@ class WhaleBot:
             if signal.alias not in pos.whale_aliases:
                 continue
 
+            # ── Minimum hold filter: don't follow rapid exits ──
+            hold_minutes = (time.time() - pos.entry_time) / 60
+            if hold_minutes < self.config.MIN_HOLD_MINUTES:
+                logger.info(
+                    "Ignoring whale exit from %s on %s — held only %.1f min (min: %.0f min)",
+                    signal.alias, pos.market_id[:30], hold_minutes, self.config.MIN_HOLD_MINUTES,
+                )
+                continue
+
             # Track this whale as having exited this position
             if pos.trade_id not in self._whale_exit_tracking:
                 self._whale_exit_tracking[pos.trade_id] = set()
@@ -540,6 +549,14 @@ class WhaleBot:
                 self.journal.log_exit(current_pos.trade_id, exit_price, pnl, "whale_exit_follow")
                 self.risk.register_exit(current_pos.trade_id, exit_price, pnl)
                 self._cleanup_pending_exits_for(current_pos.trade_id)
+                # Set extended cooldown to prevent re-entry on this market
+                condition_id = current_pos.condition_id or current_pos.market_id
+                self.signal_engine.set_cooldown(
+                    current_pos.whale_aliases[0] if current_pos.whale_aliases else "",
+                    condition_id,
+                    minutes=120,  # 2-hour re-entry block after whale exit
+                )
+                self.signal_engine.lock_market(condition_id)
             else:
                 # Partial exit: reduce shares on the position
                 current_pos.shares -= shares_to_exit

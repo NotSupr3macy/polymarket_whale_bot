@@ -116,6 +116,9 @@ class BotConfig:
     # When a whale who triggered our position exits, follow with a cooldown.
     # If the whale re-enters within the cooldown window, cancel the pending exit.
     WHALE_EXIT_COOLDOWN_SECONDS: float = 120.0
+    # Minimum time a position must be held before following a whale exit.
+    # Prevents churning from rapid-cycling whales (scalpers/market-makers).
+    MIN_HOLD_MINUTES: float = 15.0
 
     # ── Startup ───────────────────────────────────────────────────────
     # Suppress all signals for 30s after baseline capture to let data stabilize.
