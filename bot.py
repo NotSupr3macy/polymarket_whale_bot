@@ -31,6 +31,7 @@ from order_executor import OrderExecutor, OrderResult
 from risk_manager import RiskManager, OpenPosition, STOP_LOSS_RESOLUTION_THRESHOLD_HOURS
 from trade_journal import TradeJournal
 from resolution_tracker import ResolutionTracker, RESOLUTION_CHECK_INTERVAL_SECONDS
+from espn_resolver import ESPNResolver
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ class WhaleBot:
         self.risk = RiskManager(config, config.INITIAL_BANKROLL)
         self.journal = TradeJournal(config.DB_PATH, dry_run=config.DRY_RUN)
         self.resolution_tracker = ResolutionTracker(config, self.journal)
+        self.espn_resolver = ESPNResolver()
         # Give signal engine access to risk manager for open position checks
         self.engine.set_risk_manager(self.risk)
         self._running = False
@@ -881,45 +883,120 @@ class WhaleBot:
                 )
 
                 if not has_winner:
+                    # ── ESPN fast resolution: check if game is final ──
+                    await self._try_espn_resolution(pos)
                     continue
 
-                # Market resolved — determine outcome and close position
+                # Market resolved via Polymarket — determine outcome and close
                 outcome = self.resolution_tracker._determine_outcome(pos.direction, tokens)
                 market_title = resolution_data.get("question", pos.condition_id[:30])
+                await self._close_resolved_position(pos, outcome, market_title, "resolution")
 
-                if outcome == "WIN":
-                    # Payout is $1 per share, we paid entry_price per share
-                    exit_price = 1.0
-                    pnl = (1.0 - pos.entry_price) * pos.shares
-                elif outcome == "LOSS":
-                    exit_price = 0.0
-                    pnl = -pos.entry_price * pos.shares
-                else:
-                    # VOID — refund at entry price
-                    exit_price = pos.entry_price
-                    pnl = 0.0
-
-                # Close the position
-                self.journal.log_exit(pos.trade_id, exit_price, pnl, "resolution")
-                self.risk.register_exit(pos.trade_id, exit_price, pnl)
-
-                logger.info(
-                    "RESOLVED POSITION: %s %s -> %s | PnL=$%.2f | %s",
-                    pos.direction, pos.trade_id[:12], outcome, pnl,
-                    market_title[:40],
-                )
-
-                await self._send_alert(
-                    f"<b>MARKET RESOLVED</b>\n"
-                    f"{'✅ WIN' if outcome == 'WIN' else '❌ LOSS' if outcome == 'LOSS' else '⚪ VOID'}\n"
-                    f"Market: {market_title[:50]}\n"
-                    f"Direction: {pos.direction}\n"
-                    f"PnL: ${pnl:,.2f}\n"
-                    f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}"
-                )
 
             except Exception as e:
                 logger.debug("Resolution check failed for %s: %s", pos.trade_id[:12], e)
+
+    async def _try_espn_resolution(self, pos: OpenPosition) -> None:
+        """
+        Try to resolve a position using ESPN's real-time scoreboard.
+        Called when Polymarket hasn't declared a winner yet but the game may be final.
+        """
+        # Get market title from journal
+        market_title = ""
+        try:
+            trade = self.journal.get_trade(pos.trade_id)
+            if trade:
+                market_title = trade.get("market_title", "")
+        except Exception:
+            pass
+
+        if not market_title:
+            return  # Can't parse without a title
+
+        # Check ESPN for final score
+        try:
+            espn_result = await self.espn_resolver.check_resolution(
+                pos.trade_id, market_title, pos.direction
+            )
+        except Exception as e:
+            logger.debug("ESPN check failed for %s: %s", pos.trade_id[:12], e)
+            return
+
+        if not espn_result:
+            return  # Game not found or not yet final
+
+        won = espn_result["won"]
+        outcome = "WIN" if won else "LOSS"
+
+        logger.info(
+            "ESPN FAST RESOLVE: %s %s -> %s | %s %d-%d | %s",
+            pos.direction, pos.trade_id[:12], outcome,
+            market_title[:40],
+            espn_result["home_score"], espn_result["away_score"],
+            espn_result["winning_direction"],
+        )
+
+        # Exit the position at market price (game is over, price should be ~0 or ~1)
+        # Try to sell shares — if the game just ended, price should be near 0 or 1
+        order = await self.executor.execute_exit(
+            pos.token_id, pos.shares, "espn_resolution"
+        )
+
+        if order and order.success:
+            exit_price = order.price if order.price > 0 else (1.0 if won else 0.0)
+            pnl = (exit_price - pos.entry_price) * pos.shares
+        else:
+            # Estimate PnL even if exit order fails (dry run or market not liquid)
+            exit_price = 1.0 if won else 0.0
+            pnl = (exit_price - pos.entry_price) * pos.shares
+
+        self.journal.log_exit(pos.trade_id, exit_price, pnl, "espn_resolution")
+        self.risk.register_exit(pos.trade_id, exit_price, pnl)
+        self._cleanup_pending_exits_for(pos.trade_id)
+
+        score_str = f"{espn_result['home_team']} {espn_result['home_score']} - {espn_result['away_team']} {espn_result['away_score']}"
+        await self._send_alert(
+            f"⚡ <b>ESPN FAST RESOLUTION</b>\n"
+            f"{'✅ WIN' if won else '❌ LOSS'}\n"
+            f"Market: {market_title[:50]}\n"
+            f"Direction: {pos.direction}\n"
+            f"Score: {score_str}\n"
+            f"PnL: ${pnl:,.2f}\n"
+            f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}\n"
+            f"<i>Resolved via ESPN (faster than Polymarket)</i>"
+        )
+
+    async def _close_resolved_position(
+        self, pos: OpenPosition, outcome: str, market_title: str, exit_reason: str,
+    ) -> None:
+        """Close a position that has been resolved (by Polymarket or ESPN)."""
+        if outcome == "WIN":
+            exit_price = 1.0
+            pnl = (1.0 - pos.entry_price) * pos.shares
+        elif outcome == "LOSS":
+            exit_price = 0.0
+            pnl = -pos.entry_price * pos.shares
+        else:
+            exit_price = pos.entry_price
+            pnl = 0.0
+
+        self.journal.log_exit(pos.trade_id, exit_price, pnl, exit_reason)
+        self.risk.register_exit(pos.trade_id, exit_price, pnl)
+
+        logger.info(
+            "RESOLVED POSITION: %s %s -> %s | PnL=$%.2f | %s",
+            pos.direction, pos.trade_id[:12], outcome, pnl,
+            market_title[:40],
+        )
+
+        await self._send_alert(
+            f"<b>MARKET RESOLVED</b>\n"
+            f"{'✅ WIN' if outcome == 'WIN' else '❌ LOSS' if outcome == 'LOSS' else '⚪ VOID'}\n"
+            f"Market: {market_title[:50]}\n"
+            f"Direction: {pos.direction}\n"
+            f"PnL: ${pnl:,.2f}\n"
+            f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}"
+        )
 
     # ── Cleanup loop ───────────────────────────────────────────────
 
@@ -1160,6 +1237,9 @@ class WhaleBot:
 
         # Stop resolution tracker
         await self.resolution_tracker.stop()
+
+        # Close ESPN resolver session
+        await self.espn_resolver.close()
 
         # Close price session (dry-run CLOB midpoint fetcher)
         if hasattr(self, '_price_session') and self._price_session:
