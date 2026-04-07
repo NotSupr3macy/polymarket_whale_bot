@@ -213,6 +213,15 @@ class TradeJournal:
         logger.debug("Journal entry: %s %s $%.2f (consensus=%s)", trade_id, direction, position_size, consensus_level)
         return trade_id
 
+    def get_trade(self, trade_id: str) -> dict | None:
+        """Get a single trade by ID."""
+        assert self._conn is not None
+        cursor = self._conn.execute(
+            f"SELECT * FROM {self.table_name} WHERE id = ?", (trade_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def log_exit(
         self,
         trade_id: str,

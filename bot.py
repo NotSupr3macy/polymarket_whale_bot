@@ -667,9 +667,41 @@ class WhaleBot:
                         self.risk.register_exit(pos.trade_id, exit_price, pnl)
                         self._cleanup_pending_exits_for(pos.trade_id)
 
+                        # Look up market title from journal
+                        _sl_title = ""
+                        try:
+                            _sl_trade = self.journal.get_trade(pos.trade_id)
+                            if _sl_trade:
+                                _sl_title = _sl_trade.get("market_title", "")
+                        except Exception:
+                            pass
+                        _sl_market = _sl_title or pos.market_id[:30]
+                        _sl_whales = ", ".join(pos.whale_aliases) if pos.whale_aliases else "unknown"
+                        _sl_tier = ""
+                        if pos.whale_aliases:
+                            _w = WHALE_WATCHLIST.get(
+                                next((w for w, v in WHALE_WATCHLIST.items() if v["alias"] == pos.whale_aliases[0]), ""),
+                                {},
+                            )
+                            _sl_tier = f" (Tier {_w.get('tier', '?')})" if _w else ""
+                        _sl_duration = ""
+                        try:
+                            _mins = (time.time() - pos.entry_time) / 60
+                            if _mins < 60:
+                                _sl_duration = f"{_mins:.0f}m"
+                            else:
+                                _sl_duration = f"{_mins / 60:.1f}h"
+                        except Exception:
+                            pass
+
                         await self._send_alert(
-                            f"STOP-LOSS: {pos.market_id[:30]}\n"
-                            f"PnL: ${pnl:.2f} | Exit: ${exit_price:.4f}"
+                            f"🛑 <b>STOP-LOSS TRIGGERED</b>\n"
+                            f"Market: {_sl_market}\n"
+                            f"Whale: {_sl_whales}{_sl_tier}\n"
+                            f"Direction: {pos.direction}\n"
+                            f"Entry: ${pos.entry_price:.4f} → Stop: ${exit_price:.4f}\n"
+                            f"Size: ${pos.size_usd:.2f} | PnL: ${pnl:.2f}\n"
+                            f"Duration: {_sl_duration}"
                         )
 
             except asyncio.CancelledError:
@@ -957,7 +989,7 @@ class WhaleBot:
                 logger.debug("Status report failed: %s", e)
 
     def _build_status_message(self) -> str:
-        """Build a Telegram-friendly status report."""
+        """Build a Telegram-friendly status report with per-whale table."""
         runtime = time.time() - self._start_time
         hours = runtime / 3600
 
@@ -966,47 +998,88 @@ class WhaleBot:
         executor_stats = self.executor.get_stats()
         journal_stats = self.journal.get_performance_stats()
         resolution_stats = self.resolution_tracker.get_stats()
+        whale_stats = self.journal.get_whale_outcomes()
 
         mode = "DRY RUN" if self.config.DRY_RUN else "LIVE"
         open_positions = self.risk.open_positions
 
         lines = [
-            f"<b>STATUS REPORT ({mode})</b>",
-            f"Uptime: {hours:.1f}h",
-            f"Bankroll: ${risk_stats['bankroll']:,.2f}",
+            f"📊 <b>STATUS REPORT ({mode})</b>",
+            f"Uptime: {hours:.1f}h | Bankroll: ${risk_stats['bankroll']:,.2f}",
             f"Total PnL: ${risk_stats['total_pnl']:,.2f} ({risk_stats['total_return_pct']:.1f}%)",
             "",
         ]
 
-        # Open positions
+        # Per-whale performance table
+        if whale_stats:
+            lines.append("📈 <b>Whale Performance:</b>")
+            lines.append("<pre>")
+            # Header
+            lines.append(f"{'Whale':<16} {'Trades':>6} {'W/L':>5} {'PnL':>9}")
+            lines.append(f"{'-'*16} {'-'*6} {'-'*5} {'-'*9}")
+
+            # Sort by PnL descending
+            sorted_whales = sorted(
+                whale_stats.items(),
+                key=lambda x: x[1]["total_pnl"],
+                reverse=True,
+            )
+            for alias, stats in sorted_whales:
+                w = stats["wins"]
+                l = stats["losses"]
+                pnl = stats["total_pnl"]
+                trades = stats["trades"]
+                pnl_str = f"+${pnl:,.2f}" if pnl >= 0 else f"-${abs(pnl):,.2f}"
+                # Truncate long aliases
+                display_alias = alias[:15] if len(alias) > 15 else alias
+                lines.append(f"{display_alias:<16} {trades:>6} {w}/{l:>3} {pnl_str:>9}")
+
+            lines.append("</pre>")
+
+            # Summary line
+            total_w = journal_stats.get("wins", 0)
+            total_l = journal_stats.get("losses", 0)
+            total_t = journal_stats["total_trades"]
+            wr = journal_stats["win_rate"]
+            lines.append(
+                f"Win Rate: {wr:.0%} ({total_w}/{total_t}) | "
+                f"Best: ${journal_stats['best_trade']:,.2f} | "
+                f"Worst: ${journal_stats['worst_trade']:,.2f}"
+            )
+            lines.append("")
+
+        # Open positions with whale info
         if open_positions:
-            lines.append(f"<b>Open Positions ({len(open_positions)}):</b>")
+            lines.append(f"📂 <b>Open Positions ({len(open_positions)}):</b>")
             for pos in open_positions:
                 stop = "HOLD" if not pos.stop_loss_enabled else f"SL {pos.stop_price:.3f}"
+                whale_str = ", ".join(pos.whale_aliases) if pos.whale_aliases else "?"
+                # Get market title from journal
+                _title = ""
+                try:
+                    _trade = self.journal.get_trade(pos.trade_id)
+                    if _trade:
+                        _title = _trade.get("market_title", "")
+                except Exception:
+                    pass
+                market_display = _title[:40] if _title else pos.direction
                 lines.append(
-                    f"  {pos.direction} ${pos.size_usd:,.2f} @ {pos.entry_price:.3f} [{stop}]"
+                    f"  {market_display} ${pos.size_usd:,.2f} @ {pos.entry_price:.3f} [{stop}] — {whale_str}"
                 )
             lines.append("")
         else:
-            lines.append("Open Positions: 0")
+            lines.append("📂 Open Positions: 0")
             lines.append("")
 
-        # Session stats
-        lines.append(f"Signals: {engine_stats['signals_processed']}")
-        lines.append(f"Orders: {executor_stats['orders_placed']}")
-
-        if journal_stats["total_trades"] > 0:
-            lines.append(
-                f"Trades: {journal_stats['total_trades']} "
-                f"(WR: {journal_stats['win_rate']:.0%})"
-            )
-            lines.append(f"Best: ${journal_stats['best_trade']:,.2f}")
-            lines.append(f"Worst: ${journal_stats['worst_trade']:,.2f}")
+        # Compact stats footer
+        lines.append(
+            f"Signals: {engine_stats['signals_processed']} | "
+            f"Orders: {executor_stats['orders_placed']} | "
+            f"Max DD: {risk_stats.get('current_drawdown_pct', 0):.1f}%"
+        )
 
         if resolution_stats["resolutions_found"] > 0:
             lines.append(f"Resolved: {resolution_stats['resolutions_found']}")
-
-        lines.append(f"Max DD: {risk_stats.get('current_drawdown_pct', 0):.1f}%")
 
         return "\n".join(lines)
 
