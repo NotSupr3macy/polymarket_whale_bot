@@ -251,6 +251,18 @@ class WhaleBot:
                     except (ValueError, TypeError) as e:
                         logger.debug("Could not parse end_date '%s': %s", end_date_str, e)
 
+                # Fallback: if no end_date was found/parsed but market title looks like
+                # a live sports market, disable stops. These resolve in hours, not days.
+                if opportunity.stop_loss_enabled and opportunity.hours_to_resolution is None:
+                    title = (opportunity.market_title or "").lower()
+                    sports_patterns = ["spread:", "o/u ", " vs ", " vs. "]
+                    if any(p in title for p in sports_patterns):
+                        opportunity.stop_loss_enabled = False
+                        logger.info(
+                            "Sports market detected (no end_date) — stop-loss DISABLED | %s",
+                            opportunity.market_title[:50],
+                        )
+
         except Exception as e:
             logger.warning("Could not enrich opportunity: %s", e)
 

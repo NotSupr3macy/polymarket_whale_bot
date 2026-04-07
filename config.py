@@ -42,6 +42,10 @@ class BotConfig:
     MAX_SINGLE_MARKET_EXPOSURE: float = 0.10
     # 20% stop-loss: wider to avoid STOPPED_EARLY on eventual winners in sports markets.
     STOP_LOSS_PCT: float = 0.20
+    # Grace period: don't check stop-losses for the first N minutes after entry.
+    # Sports prices swing wildly early in games — stops firing in minute 2 of a
+    # basketball game turn wins into losses (e.g. Michigan/UConn STOPPED_EARLY).
+    STOP_LOSS_GRACE_MINUTES: float = 30.0
     MIN_TRADE_SIZE_USD: float = 5.0
     # Ignore whale trades below $3K — noise filter from leaderboard analysis.
     MIN_WHALE_TRADE_SIZE: float = 3000.0

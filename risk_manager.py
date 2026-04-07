@@ -452,9 +452,16 @@ class RiskManager:
             List of positions that should be stopped out.
         """
         stopped = []
+        grace_seconds = self.config.STOP_LOSS_GRACE_MINUTES * 60
         for pos in self.open_positions:
             # Skip stop-loss for short-duration sports markets
             if not pos.stop_loss_enabled:
+                continue
+
+            # Grace period: don't check stops for the first N minutes after entry.
+            # Sports prices swing wildly at game start — early stops turn wins into losses.
+            age_seconds = time.time() - pos.entry_time
+            if age_seconds < grace_seconds:
                 continue
 
             price = current_prices.get(pos.token_id)
