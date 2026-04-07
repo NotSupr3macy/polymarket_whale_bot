@@ -125,23 +125,6 @@
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
-  "0xb45a797faa52b0fd8adc56d30382022b7b12192c": {
-    "alias": "bcda",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.62,
-    "avg_bet": 30000,
-    "verified_stats": {
-      "monthly_pnl": 2080000,
-      "roi": "18%"
-    },
-    "source": "Polymarket leaderboard March 2026",
-    "notes": "DEMOTED. 3/11 (21.4%) in bot. Consensus only now.",
-    "added_at": "2026-03-14",
-    "added_by": "manual"
-  },
   "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
     "alias": "jtwyslljy",
     "tier": 2,

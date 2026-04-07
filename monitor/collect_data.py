@@ -118,7 +118,8 @@ def collect() -> str:
                     / 3600,
                     1,
                 ),
-                "stop_loss_enabled": p.get("stop_loss_enabled"),
+                "stop_loss_enabled": p.get("stop_price") is not None and p.get("stop_price", 0) > 0,
+                "stop_price": p.get("stop_price"),
             }
             for p in stale_positions
         ],
@@ -180,7 +181,8 @@ def collect() -> str:
             "market_title": p.get("market_title", ""),
             "entry_time": p["entry_time"],
             "entry_price": p["entry_price"],
-            "stop_loss_enabled": p.get("stop_loss_enabled"),
+            "stop_loss_enabled": p.get("stop_price") is not None and p.get("stop_price", 0) > 0,
+                "stop_price": p.get("stop_price"),
             "hours_open": round(
                 (
                     datetime.now(timezone.utc)

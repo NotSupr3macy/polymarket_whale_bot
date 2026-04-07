@@ -27,6 +27,30 @@
       "description": "Low win rate driven by Tier 2/3 solo trades",
       "fix_applied": "TIER2_SOLO_ENABLED=False, TIER3_SOLO_ENABLED=False, TIER1_SOLO_MIN_USD=15000",
       "date_fixed": "2026-03-17"
+    },
+    {
+      "id": "elkmonkey_removed",
+      "description": "elkmonkey (0W/13L in bot) rapid cycler generating all trades, 0% win rate",
+      "fix_applied": "Removed from whales.json. All elkmonkey open positions force-closed as VOID. Trade DB archived and reset.",
+      "date_fixed": "2026-04-07",
+      "affects_historical_data": true,
+      "note": "13 elkmonkey trades archived in trades_dry_archive_20260407. DB reset to clean slate."
+    },
+    {
+      "id": "bcda_removed",
+      "description": "bcda (4W/10L in bot, 28.6% WR) two demotion cycles with no improvement, -$34.80 PnL",
+      "fix_applied": "Removed from whales.json per agent Tier 2 recommendation. Verified global stats (62% WR) did not translate to bot copy-trading.",
+      "date_fixed": "2026-04-07",
+      "affects_historical_data": true,
+      "note": "14 bcda trades archived in trades_dry_archive_20260407."
+    },
+    {
+      "id": "db_reset_20260407",
+      "description": "Trade DB reset after removing elkmonkey and bcda — all 52 prior trades archived",
+      "fix_applied": "Old trades moved to trades_dry_archive_20260407 table. Fresh trades_dry started with only 1 active kch123 position.",
+      "date_fixed": "2026-04-07",
+      "affects_historical_data": true,
+      "note": "Archive table still in trades.db for historical reference."
     }
   ]
 }
