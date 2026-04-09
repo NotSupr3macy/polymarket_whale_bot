@@ -356,13 +356,15 @@ class WhaleBot:
                     break
             else:
                 _whale_tiers.append(_alias)
+        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
         await self._send_alert(
             f"📈 <b>NEW TRADE</b>\n"
             f"Direction: {opportunity.direction} | ${size:.0f}\n"
             f"Market: {opportunity.market_title or opportunity.market_id[:30]}\n"
             f"Whales: {', '.join(_whale_tiers)}\n"
             f"Trigger: {_trigger} ({opportunity.consensus_pct:.0%} consensus)\n"
-            f"Price: ${order.price:.4f} | {stop_info}"
+            f"Price: ${order.price:.4f} | {stop_info}\n"
+            f"Time: {_now}"
         )
 
     # ── Legacy exit signal handler (engine-level: 2+ whales exit) ──
@@ -609,13 +611,15 @@ class WhaleBot:
                 pass
             _exit_market = _exit_title[:50] if _exit_title else current_pos.market_id[:30]
 
+            _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
             await self._send_alert(
                 f"🐋 <b>WHALE EXIT FOLLOW</b>\n"
                 f"{'Full exit' if exit_fraction >= 0.95 else f'Partial ({exit_fraction:.0%})'}\n"
                 f"Market: {_exit_market}\n"
                 f"Direction: {current_pos.direction}\n"
                 f"Shares: {shares_to_exit:.0f} | PnL: ${pnl:,.2f}\n"
-                f"Entry: ${current_pos.entry_price:.3f} → Exit: ${exit_price:.3f}"
+                f"Entry: ${current_pos.entry_price:.3f} → Exit: ${exit_price:.3f}\n"
+                f"Time: {_now}"
             )
         else:
             logger.warning(
@@ -754,6 +758,7 @@ class WhaleBot:
                         except Exception:
                             pass
 
+                        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
                         await self._send_alert(
                             f"🛑 <b>STOP-LOSS TRIGGERED</b>\n"
                             f"Market: {_sl_market}\n"
@@ -761,7 +766,8 @@ class WhaleBot:
                             f"Direction: {pos.direction}\n"
                             f"Entry: ${pos.entry_price:.4f} → Stop: ${exit_price:.4f}\n"
                             f"Size: ${pos.size_usd:.2f} | PnL: ${pnl:.2f}\n"
-                            f"Duration: {_sl_duration}"
+                            f"Duration: {_sl_duration}\n"
+                            f"Time: {_now}"
                         )
 
             except asyncio.CancelledError:
@@ -1033,6 +1039,7 @@ class WhaleBot:
         self._cleanup_pending_exits_for(pos.trade_id)
 
         score_str = f"{espn_result['home_team']} {espn_result['home_score']} - {espn_result['away_team']} {espn_result['away_score']}"
+        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
         await self._send_alert(
             f"⚡ <b>ESPN FAST RESOLUTION</b>\n"
             f"{'✅ WIN' if won else '❌ LOSS'}\n"
@@ -1041,6 +1048,7 @@ class WhaleBot:
             f"Score: {score_str}\n"
             f"PnL: ${pnl:,.2f}\n"
             f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}\n"
+            f"Time: {_now}\n"
             f"<i>Resolved via ESPN (faster than Polymarket)</i>"
         )
 
@@ -1067,13 +1075,15 @@ class WhaleBot:
             market_title[:40],
         )
 
+        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
         await self._send_alert(
             f"<b>MARKET RESOLVED</b>\n"
             f"{'✅ WIN' if outcome == 'WIN' else '❌ LOSS' if outcome == 'LOSS' else '⚪ VOID'}\n"
             f"Market: {market_title[:50]}\n"
             f"Direction: {pos.direction}\n"
             f"PnL: ${pnl:,.2f}\n"
-            f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}"
+            f"Entry: ${pos.entry_price:.3f} | Size: ${pos.size_usd:,.2f}\n"
+            f"Time: {_now}"
         )
 
     # ── Cleanup loop ───────────────────────────────────────────────
