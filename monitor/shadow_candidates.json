@@ -1,0 +1,42 @@
+{
+  "0xc8075693f48668a264b9fa313b47f52712fcc12b": {
+    "alias": "texaskid",
+    "wallet": "0xc8075693f48668a264b9fa313b47f52712fcc12b",
+    "status": "shadowing",
+    "scouted_at": "2026-04-09",
+    "shadow_start": "2026-04-09",
+    "leaderboard_rank": 1,
+    "leaderboard_period": "month",
+    "monthly_pnl": 219044.26,
+    "monthly_volume": 8757.3,
+    "real_win_rate": 0.75,
+    "resolved_positions": 24,
+    "wins": 18,
+    "losses": 6,
+    "sports_pct": 1.0,
+    "total_positions": 30,
+    "est_avg_bet": 27847,
+    "score": 71.8,
+    "category": "sports"
+  },
+  "0x9e2f652edcc5f944f33f68410d10ea4464a9ec47": {
+    "alias": "UAVUAV",
+    "wallet": "0x9e2f652edcc5f944f33f68410d10ea4464a9ec47",
+    "status": "shadowing",
+    "scouted_at": "2026-04-09",
+    "shadow_start": "2026-04-09",
+    "leaderboard_rank": 0,
+    "leaderboard_period": "week",
+    "monthly_pnl": 10901.0,
+    "monthly_volume": 50000.0,
+    "real_win_rate": 0.75,
+    "resolved_positions": 8,
+    "wins": 6,
+    "losses": 2,
+    "sports_pct": 1.0,
+    "total_positions": 13,
+    "est_avg_bet": 5000,
+    "score": 68.0,
+    "category": "sports"
+  }
+}

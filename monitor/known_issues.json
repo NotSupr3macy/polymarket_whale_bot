@@ -51,6 +51,14 @@
       "date_fixed": "2026-04-07",
       "affects_historical_data": true,
       "note": "Archive table still in trades.db for historical reference."
+    },
+    {
+      "id": "whale_purge_20260409",
+      "description": "Position audit revealed 8/16 whales had real WR 0-25% despite 55-69% claimed WR",
+      "fix_applied": "Removed Blessed-Sunshine, nz8, ewelmealt, Anointed-Connect, Whale_Beta, kch123, HorizonSplendidView, 0x2a2C. Kept 8 whales (1 verified + 7 low-data). Updated all remaining whales with real WR from positions API.",
+      "date_fixed": "2026-04-09",
+      "affects_historical_data": true,
+      "note": "Leaderboard PnL does not correlate with copy-trade win rate. Position-verified WR is the only reliable metric. Discovery pipeline now handles whale sourcing."
     }
   ]
 }
