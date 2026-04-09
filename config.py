@@ -92,8 +92,8 @@ class BotConfig:
     # Needed because these whales trade in different niches and rarely overlap.
     # Lowered from $25K after 12h dry run showed gmanas avg bet is $12.7K.
     TIER1_SOLO_ENABLED: bool = True
-    TIER1_SOLO_MIN_USD: float = 10_000  # Only on whale trades > $10K
-    TIER1_SOLO_POSITION_MULT: float = 0.40  # 40% of normal position size
+    TIER1_SOLO_MIN_USD: float = 1_000  # Lowered to catch more T1 trades (texaskid avg $27K)
+    TIER1_SOLO_POSITION_MULT: float = 0.80  # 80% of normal position size — high confidence in T1 whales
 
     # ── Tier 2 Solo Trade Parameters ───────────────────────────────
     # Tier 2 whales can also solo trade but need larger trades and get smaller size.
