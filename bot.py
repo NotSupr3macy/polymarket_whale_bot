@@ -22,7 +22,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+# US Pacific Time (UTC-7 PDT / UTC-8 PST)
+_PST = timezone(timedelta(hours=-7))  # PDT (summer)
 
 from config import BotConfig, WHALE_WATCHLIST
 from whale_monitor import WhaleMonitor, WhaleSignal
@@ -356,7 +359,7 @@ class WhaleBot:
                     break
             else:
                 _whale_tiers.append(_alias)
-        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
+        _now = datetime.now(_PST).strftime("%b %d, %I:%M %p PST")
         await self._send_alert(
             f"📈 <b>NEW TRADE</b>\n"
             f"Direction: {opportunity.direction} | ${size:.0f}\n"
@@ -611,7 +614,7 @@ class WhaleBot:
                 pass
             _exit_market = _exit_title[:50] if _exit_title else current_pos.market_id[:30]
 
-            _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
+            _now = datetime.now(_PST).strftime("%b %d, %I:%M %p PST")
             await self._send_alert(
                 f"🐋 <b>WHALE EXIT FOLLOW</b>\n"
                 f"{'Full exit' if exit_fraction >= 0.95 else f'Partial ({exit_fraction:.0%})'}\n"
@@ -758,7 +761,7 @@ class WhaleBot:
                         except Exception:
                             pass
 
-                        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
+                        _now = datetime.now(_PST).strftime("%b %d, %I:%M %p PST")
                         await self._send_alert(
                             f"🛑 <b>STOP-LOSS TRIGGERED</b>\n"
                             f"Market: {_sl_market}\n"
@@ -1039,7 +1042,7 @@ class WhaleBot:
         self._cleanup_pending_exits_for(pos.trade_id)
 
         score_str = f"{espn_result['home_team']} {espn_result['home_score']} - {espn_result['away_team']} {espn_result['away_score']}"
-        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
+        _now = datetime.now(_PST).strftime("%b %d, %I:%M %p PST")
         await self._send_alert(
             f"⚡ <b>ESPN FAST RESOLUTION</b>\n"
             f"{'✅ WIN' if won else '❌ LOSS'}\n"
@@ -1075,7 +1078,7 @@ class WhaleBot:
             market_title[:40],
         )
 
-        _now = datetime.now(timezone.utc).strftime("%b %d, %I:%M %p UTC")
+        _now = datetime.now(_PST).strftime("%b %d, %I:%M %p PST")
         await self._send_alert(
             f"<b>MARKET RESOLVED</b>\n"
             f"{'✅ WIN' if outcome == 'WIN' else '❌ LOSS' if outcome == 'LOSS' else '⚪ VOID'}\n"
