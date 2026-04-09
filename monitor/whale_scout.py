@@ -339,11 +339,13 @@ async def run_scout() -> int:
             }
 
             new_candidates.append(candidate)
-            logger.info("  CANDIDATE: %s | WR=%.1f%% (%dW/%dL, %d resolved) | "
-                       "Sports=%.0f%% | PnL=$%,.0f | Score=%.1f",
-                       username, analysis["win_rate"] * 100,
-                       analysis["wins"], analysis["losses"], analysis["resolved"],
-                       analysis["sports_pct"] * 100, entry.get("pnl", 0), score)
+            logger.info(
+                "  CANDIDATE: %s | WR=%.1f%% (%dW/%dL, %d resolved) | "
+                "Sports=%.0f%% | PnL=$%.0f | Score=%.1f",
+                username, analysis["win_rate"] * 100,
+                analysis["wins"], analysis["losses"], analysis["resolved"],
+                analysis["sports_pct"] * 100, entry.get("pnl", 0), score,
+            )
 
     if not new_candidates:
         logger.info("No candidates passed all filters")
