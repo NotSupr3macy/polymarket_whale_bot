@@ -51,6 +51,41 @@ elif [ "$ROTATION_EXIT" -eq 1 ]; then
     echo "$(date): Whale rotation error (non-fatal, continuing)" >> "$LOG"
 fi
 
+# ── Step 1.6: Whale Scout (daily discovery) ────────────────────
+echo "$(date): Running whale scout..." >> "$LOG"
+python3 monitor/whale_scout.py >> "$LOG" 2>&1
+SCOUT_EXIT=$?
+if [ "$SCOUT_EXIT" -eq 2 ]; then
+    echo "$(date): New shadow candidates found" >> "$LOG"
+elif [ "$SCOUT_EXIT" -eq 1 ]; then
+    echo "$(date): Whale scout error (non-fatal, continuing)" >> "$LOG"
+fi
+
+# ── Step 1.7: Whale Promote/Demote (weekly, Sundays only) ─────
+DOW=$(date +%u)  # 7 = Sunday
+if [ "$DOW" -eq 7 ]; then
+    echo "$(date): Running weekly promote/demote..." >> "$LOG"
+    python3 monitor/whale_promote.py >> "$LOG" 2>&1
+    PROMOTE_EXIT=$?
+    if [ "$PROMOTE_EXIT" -eq 2 ]; then
+        echo "$(date): Whale promotion/demotion applied — restarting bot" >> "$LOG"
+        bash deploy/stop.sh >> "$LOG" 2>&1
+        sleep 3
+        bash deploy/start.sh >> "$LOG" 2>&1
+        echo "$(date): Bot restarted after promotion/demotion" >> "$LOG"
+    fi
+else
+    echo "$(date): Skipping promote/demote (runs Sundays only)" >> "$LOG"
+fi
+
+# ── Step 1.8: Ensure shadow monitor is running ────────────────
+if ! tmux has-session -t whale-shadow 2>/dev/null; then
+    echo "$(date): Starting shadow monitor..." >> "$LOG"
+    bash deploy/start_shadow.sh >> "$LOG" 2>&1
+else
+    echo "$(date): Shadow monitor already running" >> "$LOG"
+fi
+
 # ── Step 2: Build prompt ─────────────────────────────────────────
 PROMPT=$(python3 monitor/agent_prompt.py monitor/reports/latest.json 2>> "$LOG")
 
