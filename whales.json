@@ -136,5 +136,28 @@
     "notes": "LOW DATA. Only 1 resolved. 175% ROI looks good but unverified.",
     "added_at": "2026-04-06",
     "added_by": "manual"
+  },
+  "0xc8075693f48668a264b9fa313b47f52712fcc12b": {
+    "alias": "texaskid",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.77,
+    "avg_bet": 27847,
+    "verified_stats": {
+      "real_wr": "77.4% (41W/12L, 53 resolved in shadow)",
+      "shadow_pnl": 1182289,
+      "monthly_pnl": 219044,
+      "total_positions": 58,
+      "sports_pct": 1.0
+    },
+    "source": "Automated discovery pipeline → shadow verified April 2026",
+    "notes": "TOP WHALE. 77% shadow WR on 53 trades. MLB + NBA specialist. Promoted early due to overwhelming data. Protected from auto-demotion.",
+    "added_at": "2026-04-09",
+    "added_by": "discovery_pipeline",
+    "promoted_at": "2026-04-09",
+    "shadow_days": 1,
+    "promotion_reason": "manual_early — 53 trades, 77.4% WR, $1.18M shadow PnL"
   }
 }
