@@ -100,7 +100,7 @@ class BotConfig:
     # Lowered from $50K after 12h dry run — real trades were $4K-$13K.
     TIER2_SOLO_ENABLED: bool = True  # Re-enabled with whale-level win rate filter
     TIER2_SOLO_MIN_USD: float = 10_000  # Only on whale trades > $10K
-    TIER2_SOLO_MIN_WIN_RATE: float = 0.55  # Only allow solo from T2 whales with >= 55% win rate
+    TIER2_SOLO_MIN_WIN_RATE: float = 0.60  # Only allow solo from T2 whales with >= 60% win rate (raised from 0.55)
     TIER2_SOLO_POSITION_MULT: float = 0.25  # 25% of normal position size
 
     # ── Tier 3 Solo Trade Parameters ───────────────────────────────

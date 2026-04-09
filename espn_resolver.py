@@ -4,8 +4,9 @@ ESPN-based fast resolution for sports markets.
 Checks ESPN's free scoreboard API for final scores and resolves trades
 immediately instead of waiting hours/days for Polymarket's official resolution.
 
-Supports: NBA, NHL, MLB, NCAAB (men's basketball)
-Bet types: Moneyline, Spread, Over/Under
+Supports: NBA, NHL, MLB, NCAAB, NCAAF, NFL + European soccer
+  (Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League)
+Bet types: Moneyline, Spread, Over/Under, "Will X win?" markets
 """
 
 import re
@@ -18,12 +19,22 @@ logger = logging.getLogger("espn_resolver")
 
 # ESPN API endpoints (free, no auth required)
 ESPN_ENDPOINTS = {
+    # US Sports
     "nba": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
     "nhl": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard",
     "mlb": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
     "ncaab": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard",
     "ncaaf": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard",
     "nfl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+    # European Soccer
+    "epl": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard",
+    "la_liga": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard",
+    "bundesliga": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard",
+    "serie_a": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/scoreboard",
+    "ligue_1": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/scoreboard",
+    "ucl": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard",
+    "uel": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/scoreboard",
+    "mls": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard",
 }
 
 # Team name aliases: maps Polymarket names to ESPN names
@@ -33,6 +44,28 @@ TEAM_ALIASES = {
     "niners": "49ers",
     "sixers": "76ers",
     "wolves": "timberwolves",
+    # European soccer common abbreviations
+    "psg": "paris saint-germain",
+    "paris saint-germain fc": "paris saint-germain",
+    "fc barcelona": "barcelona",
+    "club atlético de madrid": "atletico madrid",
+    "atlético madrid": "atletico madrid",
+    "atletico de madrid": "atletico madrid",
+    "bayern münchen": "bayern munich",
+    "fc bayern münchen": "bayern munich",
+    "borussia dortmund": "dortmund",
+    "real madrid cf": "real madrid",
+    "arsenal fc": "arsenal",
+    "manchester united fc": "manchester united",
+    "manchester city fc": "manchester city",
+    "chelsea fc": "chelsea",
+    "liverpool fc": "liverpool",
+    "tottenham hotspur fc": "tottenham hotspur",
+    "ac milan": "milan",
+    "inter milan": "internazionale",
+    "juventus fc": "juventus",
+    "as roma": "roma",
+    "ssc napoli": "napoli",
 }
 
 
@@ -109,6 +142,17 @@ def parse_market_title(title: str) -> dict:
         result["team2"] = ml_match.group(2).strip()
         return result
 
+    # "Will X win?" or "Will X win on YYYY-MM-DD?" — soccer/special moneyline
+    will_win_match = re.match(
+        r"Will\s+(.+?)\s+win(?:\s+on\s+\d{4}-\d{2}-\d{2})?\s*\??$",
+        title,
+        re.IGNORECASE,
+    )
+    if will_win_match:
+        result["bet_type"] = "will_win"
+        result["team1"] = will_win_match.group(1).strip()
+        return result
+
     return result
 
 
@@ -154,7 +198,61 @@ def _detect_sport(title: str) -> list[str]:
     """Guess which sport(s) a market might be from the title."""
     title_lower = title.lower()
 
-    # Check for sport-specific team names or keywords
+    # ── European Soccer Detection ─────────────────────────────────
+    soccer_keywords = [
+        # Teams
+        "barcelona", "fc barcelona", "real madrid", "atletico", "atlético",
+        "bayern", "münchen", "dortmund", "borussia", "psg", "paris saint-germain",
+        "arsenal", "chelsea", "liverpool", "manchester", "tottenham", "everton",
+        "west ham", "newcastle", "aston villa", "crystal palace", "wolves",
+        "juventus", "milan", "inter", "napoli", "roma", "lazio", "fiorentina",
+        "lyon", "marseille", "monaco", "lille",
+        # League markers
+        "fc ", " fc", " cf", "cf ",
+        "champions league", "europa league", "premier league",
+        "la liga", "bundesliga", "serie a", "ligue 1",
+    ]
+    # "Will X win?" format is almost always soccer on Polymarket
+    is_will_win = title_lower.startswith("will ") and "win" in title_lower
+
+    if any(k in title_lower for k in soccer_keywords) or is_will_win:
+        # Try to narrow down which league
+        soccer_leagues = []
+        epl_teams = ["arsenal", "chelsea", "liverpool", "manchester", "tottenham",
+                     "everton", "west ham", "newcastle", "aston villa", "crystal palace",
+                     "brighton", "fulham", "brentford", "bournemouth", "nottingham",
+                     "wolverhampton", "leicester", "ipswich", "southampton"]
+        la_liga_teams = ["barcelona", "real madrid", "atletico", "atlético", "sevilla",
+                         "villarreal", "real sociedad", "betis", "athletic bilbao",
+                         "celta", "valencia", "mallorca", "girona", "getafe", "osasuna"]
+        bundesliga_teams = ["bayern", "münchen", "dortmund", "borussia", "leverkusen",
+                            "leipzig", "wolfsburg", "freiburg", "hoffenheim", "stuttgart",
+                            "frankfurt", "mainz", "augsburg", "werder", "union berlin"]
+        serie_a_teams = ["juventus", "milan", "inter", "napoli", "roma", "lazio",
+                         "fiorentina", "atalanta", "torino", "bologna", "monza",
+                         "sassuolo", "verona", "udinese", "lecce", "empoli", "genoa"]
+        ligue_1_teams = ["psg", "paris saint-germain", "marseille", "lyon", "monaco",
+                         "lille", "nice", "rennes", "lens", "strasbourg", "toulouse",
+                         "nantes", "montpellier", "reims", "brest", "clermont"]
+
+        if any(t in title_lower for t in epl_teams):
+            soccer_leagues.append("epl")
+        if any(t in title_lower for t in la_liga_teams):
+            soccer_leagues.append("la_liga")
+        if any(t in title_lower for t in bundesliga_teams):
+            soccer_leagues.append("bundesliga")
+        if any(t in title_lower for t in serie_a_teams):
+            soccer_leagues.append("serie_a")
+        if any(t in title_lower for t in ligue_1_teams):
+            soccer_leagues.append("ligue_1")
+
+        # If no specific league detected, check all + UCL
+        if not soccer_leagues:
+            soccer_leagues = ["ucl", "uel", "epl", "la_liga", "bundesliga", "serie_a", "ligue_1", "mls"]
+
+        return soccer_leagues
+
+    # ── US Sports Detection ──────────────────────────────────────
     nhl_keywords = [
         "sharks", "ducks", "flames", "oilers", "canucks", "avalanche",
         "predators", "blackhawks", "red wings", "maple leafs", "bruins",
@@ -233,6 +331,17 @@ def resolve_bet(parsed: dict, game: GameResult) -> BetResolution | None:
             won=True,
             direction=winning_direction,
             margin=abs(total - int(ou_val)),
+            total_points=total,
+        )
+
+    elif parsed["bet_type"] == "will_win":
+        # "Will X win?" — team1 must be the winner (draw = LOSS for YES bettors)
+        team = parsed["team1"]
+        team_won = _teams_match(team, game.winner)
+        return BetResolution(
+            won=team_won,
+            direction=game.winner,
+            margin=abs(margin),
             total_points=total,
         )
 
@@ -413,6 +522,15 @@ class ESPNResolver:
                 won = _teams_match(direction, resolution.direction)
             elif parsed["bet_type"] == "spread":
                 won = _teams_match(direction, resolution.direction)
+            elif parsed["bet_type"] == "will_win":
+                # YES = team wins, NO = team doesn't win (loss or draw)
+                if our_direction == "YES":
+                    won = resolution.won
+                elif our_direction == "NO":
+                    won = not resolution.won
+                else:
+                    # Direction might be team name — match against winner
+                    won = _teams_match(direction, resolution.direction)
             else:
                 continue
 

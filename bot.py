@@ -894,8 +894,8 @@ class WhaleBot:
                 # Debug: always log result for every position
                 cid_short = pos.condition_id[:12]
                 if not resolution_data:
-                    logger.warning(
-                        "  [RESOLUTION-DEBUG] %s (%s): API returned NO DATA",
+                    logger.debug(
+                        "  [RESOLUTION] %s (%s): API returned NO DATA",
                         cid_short, pos.market_id[:30],
                     )
                     continue
@@ -905,13 +905,22 @@ class WhaleBot:
                 active = resolution_data.get("active", None)
                 has_winner = any(t.get("winner") is True for t in tokens)
 
-                logger.info(
-                    "  [RESOLUTION-DEBUG] %s (%s): closed=%s active=%s has_winner=%s tokens=%s",
+                logger.debug(
+                    "  [RESOLUTION] %s (%s): closed=%s active=%s has_winner=%s tokens=%s",
                     cid_short, pos.market_id[:30], closed, active, has_winner,
                     [(t.get("outcome"), t.get("winner"), t.get("price")) for t in tokens],
                 )
 
                 if not has_winner:
+                    # ── Near-certainty auto-resolve: price > 0.99 or < 0.01 ──
+                    # When a token hits extreme prices, the outcome is decided
+                    # even if Polymarket hasn't formally resolved yet.
+                    near_certain = await self._try_near_certainty_resolution(
+                        pos, tokens, resolution_data
+                    )
+                    if near_certain:
+                        continue
+
                     # ── ESPN fast resolution: check if game is final ──
                     await self._try_espn_resolution(pos)
                     continue
@@ -924,6 +933,46 @@ class WhaleBot:
 
             except Exception as e:
                 logger.debug("Resolution check failed for %s: %s", pos.trade_id[:12], e)
+
+    async def _try_near_certainty_resolution(
+        self, pos: OpenPosition, tokens: list, resolution_data: dict,
+    ) -> bool:
+        """
+        Auto-resolve when a token price hits extreme levels (>0.99 or <0.01).
+        The outcome is effectively decided even without formal Polymarket resolution.
+        Returns True if the position was resolved.
+        """
+        NEAR_CERTAIN_THRESHOLD = 0.99
+
+        # Find the token matching our direction
+        our_token_price = None
+        for t in tokens:
+            outcome_name = t.get("outcome", "").upper()
+            if outcome_name == pos.direction.upper():
+                our_token_price = t.get("price")
+                break
+
+        if our_token_price is None:
+            return False
+
+        # Check if outcome is near-certain
+        if our_token_price >= NEAR_CERTAIN_THRESHOLD:
+            outcome = "WIN"
+        elif our_token_price <= (1 - NEAR_CERTAIN_THRESHOLD):
+            outcome = "LOSS"
+        else:
+            return False
+
+        # Resolve it
+        market_title = resolution_data.get("question", pos.condition_id[:30])
+        logger.info(
+            "NEAR-CERTAINTY RESOLVE: %s %s -> %s (price=%.4f) | %s",
+            pos.direction, pos.trade_id[:12], outcome, our_token_price, market_title[:40],
+        )
+        await self._close_resolved_position(
+            pos, outcome, market_title, "near_certainty_resolution"
+        )
+        return True
 
     async def _try_espn_resolution(self, pos: OpenPosition) -> None:
         """

@@ -76,7 +76,7 @@
     "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": true,
+    "solo_enabled": false,
     "win_rate": 0.62,
     "avg_bet": 30000,
     "verified_stats": {
@@ -84,7 +84,7 @@
       "weekly_volume": 1800000
     },
     "source": "Polymarket leaderboard March 2026",
-    "notes": "$925K weekly on $1.8M volume. REAL ADDRESS. EPL specialist.",
+    "notes": "DEMOTED. 0W/2L in bot (-$22.73). Doubled down on FC Barcelona and lost both. Consensus only.",
     "added_at": "2026-03-31",
     "added_by": "manual"
   },
