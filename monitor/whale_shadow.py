@@ -280,7 +280,7 @@ class ShadowMonitor:
 
             self.open_trades[key] = trade_id
             logger.info(
-                "SHADOW ENTRY: %s | %s %s @ $%.3f | $%,.0f | %s",
+                "SHADOW ENTRY: %s | %s %s @ $%.3f | $%.0f | %s",
                 alias, direction, title[:40], avg_price, initial_value, trade_id,
             )
         except Exception as e:
