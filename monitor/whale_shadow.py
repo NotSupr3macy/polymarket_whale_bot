@@ -222,6 +222,12 @@ class ShadowMonitor:
             if cid not in prev_baseline:
                 key = f"{cid}_{wallet}"
                 if key not in self.open_trades:
+                    # Skip already-resolved positions (don't record stale entries)
+                    if pos.get("redeemable"):
+                        continue
+                    cur_price = pos.get("curPrice", 0.5)
+                    if cur_price >= RESOLUTION_THRESHOLD or cur_price <= (1 - RESOLUTION_THRESHOLD):
+                        continue
                     await self._record_entry(wallet, alias, pos)
 
         # ── Detect RESOLVED positions (in baseline, gone or price settled) ─
@@ -250,8 +256,24 @@ class ShadowMonitor:
     async def _record_entry(self, wallet: str, alias: str, pos: dict) -> None:
         """Record a new shadow trade entry."""
         cid = pos.get("conditionId", "")
-        trade_id = str(uuid.uuid4())[:8] + "-shadow"
         key = f"{cid}_{wallet}"
+
+        # Check if we already have a trade for this condition_id + wallet
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            existing = conn.execute(
+                "SELECT id FROM shadow_trades WHERE condition_id=? AND wallet=? LIMIT 1",
+                (cid, wallet),
+            ).fetchone()
+            conn.close()
+            if existing:
+                # Already tracked, just add to open_trades map if still open
+                self.open_trades[key] = existing[0]
+                return
+        except Exception:
+            pass
+
+        trade_id = str(uuid.uuid4())[:8] + "-shadow"
 
         title = pos.get("title", "")
         direction = pos.get("outcome", "YES")
