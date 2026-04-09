@@ -32,7 +32,7 @@ MIN_SHADOW_TRADES = 8           # Minimum shadow trades before promotion
 MIN_SHADOW_DAYS = 14            # Minimum days in shadow before promotion
 MIN_SHADOW_WIN_RATE = 0.55      # Shadow WR threshold for promotion
 MIN_LIVE_TRADES = 8             # Minimum live trades before demotion eval
-MIN_LIVE_WIN_RATE = 0.40        # Live WR below this → demote
+MIN_LIVE_WIN_RATE = 0.45        # Live WR below this → demote
 MAX_LIVE_WHALES = 18            # Cap on total live whales
 MAX_PROMOTIONS_PER_WEEK = 3     # Don't flood the watchlist
 

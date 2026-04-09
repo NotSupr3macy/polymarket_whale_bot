@@ -36,9 +36,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 
 # ── Rotation Parameters ──────────────────────────────────────────────
-TARGET_WHALE_COUNT = 12
+TARGET_WHALE_COUNT = 16
 MIN_TRADES = 8          # Minimum closed trades before evaluating
-MIN_WIN_RATE = 0.40     # Below this → auto-remove
+MIN_WIN_RATE = 0.45     # Below this → auto-remove
 MIN_LEADERBOARD_PNL = 100_000  # Monthly PnL floor for new candidates ($100K)
 DEFAULT_WIN_RATE = 0.57
 DEFAULT_AVG_BET = 10_000
