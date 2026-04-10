@@ -57,6 +57,7 @@ class BotConfig:
     # Sweet spot is 0.35-0.50 where wins pay 1.8-2.9x and whale edge matters.
     MIN_ENTRY_PRICE: float = 0.30
     MAX_ENTRY_PRICE: float = 0.55
+    TIER1_MAX_ENTRY_PRICE: float = 0.80  # T1 whales proven at higher prices
 
     # ── Spread Magnitude Filter ──────────────────────────────────────
     # Skip extreme spread bets (e.g. Team -14.5). These are coin flips

@@ -121,18 +121,22 @@ class SignalEngine:
         """Set reference to risk manager for open position checks."""
         self._risk_manager = risk_manager
 
-    def _check_entry_price_filter(self, entry_price: float, direction: str, alias: str) -> bool:
+    def _check_entry_price_filter(
+        self, entry_price: float, direction: str, alias: str,
+        max_price: float | None = None,
+    ) -> bool:
         """Reject trades outside the profitable entry price range."""
+        effective_max = max_price if max_price is not None else self.config.MAX_ENTRY_PRICE
         if entry_price < self.config.MIN_ENTRY_PRICE:
             logger.info(
                 "Filtered: %s %s @ %.3f — below min entry %.2f (extreme longshot)",
                 alias, direction, entry_price, self.config.MIN_ENTRY_PRICE,
             )
             return False
-        if entry_price > self.config.MAX_ENTRY_PRICE:
+        if entry_price > effective_max:
             logger.info(
                 "Filtered: %s %s @ %.3f — above max entry %.2f (margin too thin)",
-                alias, direction, entry_price, self.config.MAX_ENTRY_PRICE,
+                alias, direction, entry_price, effective_max,
             )
             return False
         return True
@@ -215,8 +219,14 @@ class SignalEngine:
             return self._process_exit(signal)
 
         # 0a. Entry price filter — reject extreme longshots and near-certainties
+        # Tier 1 whales get a wider price range (proven at higher prices)
+        max_price = (
+            self.config.TIER1_MAX_ENTRY_PRICE
+            if signal.tier == 1
+            else self.config.MAX_ENTRY_PRICE
+        )
         if signal.entry_price > 0 and not self._check_entry_price_filter(
-            signal.entry_price, signal.direction, signal.alias,
+            signal.entry_price, signal.direction, signal.alias, max_price=max_price,
         ):
             return None
 
