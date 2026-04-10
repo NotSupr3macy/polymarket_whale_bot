@@ -131,6 +131,8 @@ class TexasKidTracker:
         # baseline: {condition_id: {title, direction, size_usd, price, ...}}
         self.baseline: dict[str, dict] = {}
         self.first_poll = True
+        # Daily report tracking — only send one per UTC day
+        self.last_daily_report_date: str | None = None
 
     async def start(self) -> None:
         init_db()
@@ -145,6 +147,7 @@ class TexasKidTracker:
         while self.running:
             try:
                 await self._poll_cycle()
+                await self._maybe_send_daily_report()
             except Exception as e:
                 logger.error("Poll cycle error: %s", e)
 
@@ -392,6 +395,78 @@ class TexasKidTracker:
         if self.first_poll:
             logger.info("Baseline captured: %d positions tracked", len(current))
             self.first_poll = False
+
+    async def _maybe_send_daily_report(self) -> None:
+        """Send a daily performance summary at 8am PST each day."""
+        now_pst = datetime.now(_PST)
+        today_str = now_pst.strftime("%Y-%m-%d")
+
+        # Only send once per day, and only after 8am PST
+        if now_pst.hour < 8:
+            return
+        if self.last_daily_report_date == today_str:
+            return
+
+        try:
+            positions = await self._fetch_positions()
+        except Exception as e:
+            logger.error("Daily report fetch failed: %s", e)
+            return
+
+        # Classify all positions by outcome using live price + redeemable
+        wins = 0
+        losses = 0
+        open_positions = 0
+        total_size_open = 0.0
+        biggest_win = (0.0, "")
+        biggest_loss = (0.0, "")
+
+        for p in positions:
+            init = float(p.get("initialValue") or 0)
+            if init < MIN_POSITION_USD:
+                continue
+
+            cur = float(p.get("curPrice") or 0)
+            redeem = p.get("redeemable", False)
+            title = p.get("title") or ""
+
+            if redeem or cur >= 0.98 or cur <= 0.02:
+                if cur >= 0.98:
+                    wins += 1
+                    if init > biggest_win[0]:
+                        biggest_win = (init, title)
+                elif cur <= 0.02:
+                    losses += 1
+                    if init > biggest_loss[0]:
+                        biggest_loss = (init, title)
+            else:
+                open_positions += 1
+                total_size_open += init
+
+        resolved = wins + losses
+        wr = (wins / resolved) if resolved else 0.0
+
+        # Build Telegram message
+        lines = [
+            "🤠📊 <b>TEXASKID DAILY REPORT</b>",
+            "",
+            f"<b>Record:</b> {wins}W / {losses}L ({wr:.0%} WR)",
+            f"<b>Open positions:</b> {open_positions}",
+            f"<b>Open exposure:</b> ${total_size_open:,.0f}",
+        ]
+        if biggest_win[0] > 0:
+            lines.append(f"<b>Biggest win:</b> ${biggest_win[0]:,.0f} — {biggest_win[1][:40]}")
+        if biggest_loss[0] > 0:
+            lines.append(f"<b>Biggest loss:</b> ${biggest_loss[0]:,.0f} — {biggest_loss[1][:40]}")
+        lines.append("")
+        lines.append(f"<i>Snapshot: {now_pst.strftime('%b %d, %I:%M %p PST')}</i>")
+
+        await send_telegram("\n".join(lines))
+        logger.info(
+            "Daily report sent: %dW/%dL (%.0f%%), %d open",
+            wins, losses, wr * 100, open_positions,
+        )
+        self.last_daily_report_date = today_str
 
 
 async def main_async() -> None:

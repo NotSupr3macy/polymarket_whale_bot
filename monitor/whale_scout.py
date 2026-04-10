@@ -152,39 +152,53 @@ def analyze_positions(positions: list[dict]) -> dict:
     """
     Analyze a wallet's positions to calculate real win rate and sports focus.
 
+    Resolution detection:
+    - redeemable=True means the market resolved — curPrice is now 0 or 1 exactly
+    - curPrice >= 0.98 on non-redeemable = near-certain win (not yet marked)
+    - curPrice <= 0.02 on non-redeemable = near-certain loss (not yet marked)
+
     Returns: {win_rate, wins, losses, resolved, sports_pct, total_positions, avg_bet}
     """
     wins = 0
     losses = 0
     sports_count = 0
     total_value = 0.0
+    MIN_POSITION_USD = 10  # Ignore dust positions that skew stats
 
     for pos in positions:
         title = pos.get("title", "")
-        cur_price = pos.get("curPrice", 0.5)
+        cur_price = float(pos.get("curPrice") or 0.5)
         redeemable = pos.get("redeemable", False)
-        initial_value = pos.get("initialValue", 0)
+        initial_value = float(pos.get("initialValue") or 0)
+
+        # Skip dust positions
+        if initial_value < MIN_POSITION_USD:
+            continue
+
         total_value += initial_value
 
         # Count sports positions
         if is_sports_market(title):
             sports_count += 1
 
-        # Count resolved positions
+        # Count resolved positions (strict thresholds — 0.98/0.02)
         if redeemable:
-            if cur_price >= 0.95:
+            # Market has resolved — curPrice is authoritative
+            if cur_price >= 0.98:
                 wins += 1
-            elif cur_price <= 0.05:
+            elif cur_price <= 0.02:
                 losses += 1
+            # Between 0.02 and 0.98 while redeemable = void/ambiguous, skip
         elif cur_price >= 0.98:
-            # Nearly resolved — likely a win
             wins += 1
         elif cur_price <= 0.02:
-            # Nearly resolved — likely a loss
             losses += 1
 
     resolved = wins + losses
-    total = len(positions)
+    counted = wins + losses + sum(
+        1 for p in positions if float(p.get("initialValue") or 0) >= MIN_POSITION_USD
+    ) - resolved  # counted includes open positions ≥ threshold
+    total = sum(1 for p in positions if float(p.get("initialValue") or 0) >= MIN_POSITION_USD)
 
     return {
         "wins": wins,
