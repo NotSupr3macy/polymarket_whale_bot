@@ -42,6 +42,16 @@ POSITION_LIMIT = 100
 
 DB_PATH = os.getenv("DB_PATH", str(Path(__file__).resolve().parent.parent / "trades.db"))
 
+# ── Load .env file directly (tmux sessions don't always inherit env) ──
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _key, _, _val = _line.partition("=")
+                os.environ.setdefault(_key.strip(), _val.strip())
+
 # Telegram — read from env (same as bot.py)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -238,7 +248,7 @@ class TexasKidTracker:
                     continue
 
                 logger.info(
-                    "NEW MARKET: %s | %s @ $%.3f | $%,.0f | %s",
+                    "NEW MARKET: %s | %s @ $%.3f | $%.0f | %s",
                     pos["direction"], pos["title"][:50], pos["price"], pos["size_usd"], cid[:16],
                 )
 
@@ -286,7 +296,7 @@ class TexasKidTracker:
                 # Alert if size increased by more than $5K (he's adding to position)
                 if new_size - prev_size >= 5000:
                     logger.info(
-                        "SIZE UP: %s | $%,.0f -> $%,.0f (+$%,.0f) | %s",
+                        "SIZE UP: %s | $%.0f -> $%.0f (+$%.0f) | %s",
                         pos["title"][:40], prev_size, new_size, new_size - prev_size,
                         pos["direction"],
                     )
