@@ -20,6 +20,7 @@ from typing import Optional
 import aiohttp
 
 from .data_acquisition.mlb_puller import RUNNER_CODE
+from .team_mappings import match_mlb_team
 
 
 logger = logging.getLogger(__name__)
@@ -83,13 +84,17 @@ class MLBLiveFeed:
         games: list[dict] = []
         for day in data.get("dates", []):
             for g in day.get("games", []):
-                home = g.get("teams", {}).get("home", {}).get("team", {}).get("abbreviation", "")
-                away = g.get("teams", {}).get("away", {}).get("team", {}).get("abbreviation", "")
-                if home_abbr and home.upper() != home_abbr.upper():
-                    if not away_abbr or away.upper() != home_abbr.upper():
+                home_raw = g.get("teams", {}).get("home", {}).get("team", {}).get("abbreviation", "")
+                away_raw = g.get("teams", {}).get("away", {}).get("team", {}).get("abbreviation", "")
+                home = match_mlb_team(home_raw) or home_raw.upper()
+                away = match_mlb_team(away_raw) or away_raw.upper()
+                want_home = home_abbr.upper() if home_abbr else None
+                want_away = away_abbr.upper() if away_abbr else None
+                if want_home and home != want_home:
+                    if not want_away or away != want_home:
                         continue
-                if away_abbr and away.upper() != away_abbr.upper():
-                    if not home_abbr or home.upper() != away_abbr.upper():
+                if want_away and away != want_away:
+                    if not want_home or home != want_away:
                         continue
                 games.append({
                     "game_pk": g["gamePk"],

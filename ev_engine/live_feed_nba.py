@@ -19,6 +19,7 @@ from .data_acquisition.nba_puller import (
     OT_PERIOD_SEC,
     parse_clock_to_seconds,
 )
+from .team_mappings import match_nba_team
 
 
 logger = logging.getLogger(__name__)
@@ -82,14 +83,19 @@ class NBALiveFeed:
             away = next((c for c in competitors if c.get("homeAway") == "away"), None)
             if not home or not away:
                 continue
-            h_abbr = home.get("team", {}).get("abbreviation", "")
-            a_abbr = away.get("team", {}).get("abbreviation", "")
+            h_abbr_raw = home.get("team", {}).get("abbreviation", "")
+            a_abbr_raw = away.get("team", {}).get("abbreviation", "")
+            # Canonicalize ESPN abbrs (e.g. "SA" -> "SAS") to our internal ones
+            h_abbr = match_nba_team(h_abbr_raw) or h_abbr_raw.upper()
+            a_abbr = match_nba_team(a_abbr_raw) or a_abbr_raw.upper()
 
-            if home_abbr and h_abbr.upper() != home_abbr.upper():
-                if not away_abbr or a_abbr.upper() != home_abbr.upper():
+            want_home = home_abbr.upper() if home_abbr else None
+            want_away = away_abbr.upper() if away_abbr else None
+            if want_home and h_abbr != want_home:
+                if not want_away or a_abbr != want_home:
                     continue
-            if away_abbr and a_abbr.upper() != away_abbr.upper():
-                if not home_abbr or h_abbr.upper() != away_abbr.upper():
+            if want_away and a_abbr != want_away:
+                if not want_home or h_abbr != want_away:
                     continue
 
             status_type = event.get("status", {}).get("type", {})
