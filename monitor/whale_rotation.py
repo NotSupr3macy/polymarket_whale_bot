@@ -192,9 +192,16 @@ async def fetch_leaderboard_candidates(exclude_wallets: set[str]) -> list[dict]:
 
     candidates = []
     for entry in data:
-        addr = entry.get("address", "").lower().strip()
-        pnl = entry.get("pnl", 0)
-        volume = entry.get("volume", 0)
+        # Polymarket data API uses camelCase: proxyWallet / userName / vol.
+        # Keep fallbacks to older field names in case the API changes again.
+        addr = (
+            entry.get("proxyWallet")
+            or entry.get("address")
+            or entry.get("wallet")
+            or ""
+        ).lower().strip()
+        pnl = entry.get("pnl", 0) or 0
+        volume = entry.get("vol", 0) or entry.get("volume", 0) or 0
 
         # Skip invalid addresses (must be 0x + 40 hex chars)
         if not addr or len(addr) != 42 or not addr.startswith("0x"):
@@ -215,7 +222,12 @@ async def fetch_leaderboard_candidates(exclude_wallets: set[str]) -> list[dict]:
 
         candidates.append({
             "wallet": addr,
-            "alias": entry.get("username") or entry.get("name") or addr[:10],
+            "alias": (
+                entry.get("userName")
+                or entry.get("username")
+                or entry.get("name")
+                or addr[:10]
+            ),
             "monthly_pnl": pnl,
             "monthly_volume": volume,
             "est_avg_bet": est_avg_bet,
@@ -346,7 +358,10 @@ async def run_rotation() -> int:
     # Apply additions
     for a in additions:
         whales[a["wallet"]] = build_new_whale_entry(a)
-        logger.info("ADDED: %s (%s) — Monthly PnL $%,.0f", a["alias"], a["wallet"][:10], a["monthly_pnl"])
+        logger.info(
+            "ADDED: %s (%s) — Monthly PnL $%s",
+            a["alias"], a["wallet"][:10], f"{a['monthly_pnl']:,.0f}",
+        )
 
     # Save
     save_whales(whales)
