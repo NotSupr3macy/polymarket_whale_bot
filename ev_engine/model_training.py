@@ -116,6 +116,18 @@ def nba_moneyline_features(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
+MAX_BASE_SAMPLES = 250_000  # cap pre-augmentation rows to keep memory in check
+
+
+def _maybe_subsample(df: pd.DataFrame, max_rows: int = MAX_BASE_SAMPLES) -> pd.DataFrame:
+    """Uniformly subsample a DataFrame to keep augmented datasets under memory limits."""
+    if len(df) <= max_rows:
+        return df
+    frac = max_rows / len(df)
+    logger.info("  Subsampling base df: %d -> %d rows (frac=%.3f)", len(df), max_rows, frac)
+    return df.sample(n=max_rows, random_state=42).reset_index(drop=True)
+
+
 def mlb_spread_features(
     df: pd.DataFrame, line_choices: Optional[list[float]] = None
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -127,6 +139,7 @@ def mlb_spread_features(
     if line_choices is None:
         line_choices = [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5]
 
+    df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
     base = df[MLB_BASE_FEATURES].to_numpy(dtype=np.float32)
@@ -148,6 +161,7 @@ def nba_spread_features(
     if line_choices is None:
         line_choices = [-12.5, -8.5, -5.5, -3.5, -1.5, 1.5, 3.5, 5.5, 8.5, 12.5]
 
+    df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
     base = df[NBA_BASE_FEATURES].to_numpy(dtype=np.float32)
@@ -169,6 +183,7 @@ def mlb_ou_features(
     if line_choices is None:
         line_choices = [5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5]
 
+    df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
     base = df[MLB_BASE_FEATURES].to_numpy(dtype=np.float32)
@@ -190,6 +205,7 @@ def nba_ou_features(
     if line_choices is None:
         line_choices = [195.5, 205.5, 215.5, 220.5, 225.5, 230.5, 240.5]
 
+    df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
     base = df[NBA_BASE_FEATURES].to_numpy(dtype=np.float32)
@@ -216,7 +232,6 @@ def make_logreg_pipeline() -> Pipeline:
         ("clf", LogisticRegression(
             solver="lbfgs",
             max_iter=2000,
-            n_jobs=-1,
             C=1.0,
         )),
     ])
