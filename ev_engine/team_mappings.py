@@ -56,7 +56,7 @@ MLB_TEAMS: dict[str, dict] = {
     # NL West
     "LAD": {"name": "Los Angeles Dodgers",    "mlb_id": 119, "espn": "lad", "alts": ["dodgers", "los angeles dodgers", "la dodgers"]},
     "SD":  {"name": "San Diego Padres",       "mlb_id": 135, "espn": "sd",  "alts": ["padres", "san diego padres", "san diego", "sdp"]},
-    "ARI": {"name": "Arizona Diamondbacks",   "mlb_id": 109, "espn": "ari", "alts": ["diamondbacks", "arizona diamondbacks", "arizona", "dbacks", "d-backs"]},
+    "ARI": {"name": "Arizona Diamondbacks",   "mlb_id": 109, "espn": "ari", "alts": ["az", "diamondbacks", "arizona diamondbacks", "arizona", "dbacks", "d-backs"]},
     "SF":  {"name": "San Francisco Giants",   "mlb_id": 137, "espn": "sf",  "alts": ["giants", "san francisco giants", "san francisco", "sfg"]},
     "COL": {"name": "Colorado Rockies",       "mlb_id": 115, "espn": "col", "alts": ["rockies", "colorado rockies", "colorado"]},
 }
