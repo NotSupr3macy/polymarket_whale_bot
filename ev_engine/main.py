@@ -79,7 +79,7 @@ class EVEngine:
                 elif decision.action == "hold":
                     logger.info("HOLD    %s %s", tag, decision.reason)
                 else:
-                    logger.debug("SKIP    %s %s", tag, decision.reason)
+                    logger.info("SKIP    %s %s", tag, decision.reason)
 
     async def run_forever(self, interval_sec: int) -> None:
         logger.info(
