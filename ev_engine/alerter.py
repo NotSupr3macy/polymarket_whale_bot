@@ -97,11 +97,19 @@ class Alerter:
 
     @staticmethod
     def _format(pos: TexaskidPosition, decision: Decision) -> str:
-        """Build the HTML-formatted cashout alert."""
+        """Build the HTML-formatted cashout alert.
+
+        Always displays numbers relative to a fixed $10 position — Texaskid's
+        real size is ignored on the alert so the user sees a stable, easy-to-
+        read reference scale.
+        """
         p = decision.p_hold or 0.0
         c = decision.cashout_price or 0.0
         edge = decision.edge or 0.0
-        loss = decision.expected_loss_usd or 0.0
+
+        display_size = 10.0
+        display_loss = display_size * edge if edge > 0 else 0.0
+        display_lock_in = c * display_size
 
         # Game state line
         live_line = ""
@@ -130,10 +138,10 @@ class Alerter:
             f"Model p(win) : <b>{p:.3f}</b>\n"
             f"Cashout price: <b>{c:.3f}</b>\n"
             f"Edge         : <b>{edge:+.3f}</b>\n"
-            f"Position size: <b>${pos.current_size_usd:,.0f}</b>\n"
-            f"Expected loss: <b>${loss:,.0f}</b> if held to resolution\n"
+            f"Position size: <b>${display_size:,.2f}</b>\n"
+            f"Expected loss: <b>${display_loss:,.2f}</b> if held to resolution\n"
             f"\n"
-            f"<i>Sell now to lock in ${c * pos.current_size_usd:,.0f}</i>"
+            f"<i>Sell now to lock in ${display_lock_in:,.2f}</i>"
         )
 
 
