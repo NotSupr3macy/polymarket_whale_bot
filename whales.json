@@ -159,5 +159,97 @@
     "promoted_at": "2026-04-09",
     "shadow_days": 1,
     "promotion_reason": "manual_early — 53 trades, 77.4% WR, $1.18M shadow PnL"
+  },
+  "0x7ea571c40408f340c1c8fc8eaacebab53c1bde7b": {
+    "alias": "Cannae",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.875,
+    "avg_bet": 15000,
+    "verified_stats": {
+      "real_wr": "87.5% (733W/105L, 838 resolved)",
+      "monthly_pnl": 165377,
+      "monthly_volume": 1024597,
+      "sports_pct": 1.0,
+      "total_positions": 7813,
+      "leaderboard_rank": 10
+    },
+    "source": "Discovery pipeline → whale scout April 2026",
+    "notes": "MASSIVE SAMPLE. 838 resolved games at 87.5% WR is statistically bulletproof. 100% sports focus. Promoted directly to T2 solo on strength of verified position history.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_from_shadow",
+    "promoted_at": "2026-04-11",
+    "promotion_reason": "838 resolved positions, 87.5% verified WR, 100% sports"
+  },
+  "0x204f72f35326db932158cba6adff0b9a1da95e14": {
+    "alias": "swisstony",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.797,
+    "avg_bet": 15000,
+    "verified_stats": {
+      "real_wr": "79.7% (1056W/269L, 1325 resolved)",
+      "monthly_pnl": 289548,
+      "monthly_volume": 4041011,
+      "sports_pct": 0.99,
+      "total_positions": 2383,
+      "leaderboard_rank": 3
+    },
+    "source": "Discovery pipeline → whale scout April 2026",
+    "notes": "HUGE SAMPLE. 1325 resolved games at 79.7% WR — strongest verified dataset in the pool. $289K monthly PnL, $4M monthly volume. Promoted to T2 solo.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_from_shadow",
+    "promoted_at": "2026-04-11",
+    "promotion_reason": "1325 resolved positions, 79.7% verified WR, 99% sports"
+  },
+  "0x01c78f8873c0c86d6b6b92ff627e3802237ee995": {
+    "alias": "Lilybaeum",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": false,
+    "win_rate": 0.713,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "real_wr": "71.3% (196W/79L, 275 resolved)",
+      "monthly_pnl": 69297,
+      "monthly_volume": 556213,
+      "sports_pct": 1.0,
+      "total_positions": 5574,
+      "leaderboard_rank": 33
+    },
+    "source": "Discovery pipeline → whale scout April 2026",
+    "notes": "Decent sample (275 resolved) at 71.3% WR, 100% sports. Promoted to T2 consensus-only for now — upgrade to solo after a week of bot verification.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_from_shadow",
+    "promoted_at": "2026-04-11",
+    "promotion_reason": "275 resolved positions, 71.3% verified WR, 100% sports"
+  },
+  "0x507e52ef684ca2dd91f90a9d26d149dd3288beae": {
+    "alias": "GamblingIsAllYouNeed",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": false,
+    "win_rate": 0.692,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "real_wr": "69.2% (308W/137L, 445 resolved)",
+      "monthly_pnl": 151556,
+      "monthly_volume": 3484981,
+      "sports_pct": 0.998,
+      "total_positions": 901,
+      "leaderboard_rank": 12
+    },
+    "source": "Discovery pipeline → whale scout April 2026",
+    "notes": "Solid sample (445 resolved) at 69.2% WR, effectively 100% sports. $3.5M monthly volume. Promoted to T2 consensus-only — upgrade to solo after bot verification.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_from_shadow",
+    "promoted_at": "2026-04-11",
+    "promotion_reason": "445 resolved positions, 69.2% verified WR, 100% sports"
   }
 }
