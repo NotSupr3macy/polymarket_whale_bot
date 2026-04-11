@@ -92,10 +92,19 @@ def load_nba_states(seasons: Optional[list[int]] = None) -> pd.DataFrame:
 #  Feature construction
 # ─────────────────────────────────────────────────────────────────────
 
-MLB_BASE_FEATURES = [
+MLB_RAW_FEATURES = [
     "inning", "top_bottom", "outs", "runners_on",
     "home_score", "away_score", "score_diff", "total_runs_so_far",
 ]
+
+# Derived features added on top of the raw CSV columns. These let linear
+# models (and trees) represent game-time context properly:
+#   outs_elapsed: total outs played so far (0..54 in regulation)
+#   outs_remaining: 54 - outs_elapsed (never negative; extras saturate)
+#   pace_runs: current total runs extrapolated to a full 54-out game
+MLB_DERIVED_FEATURES = ["outs_elapsed", "outs_remaining", "pace_runs"]
+
+MLB_BASE_FEATURES = MLB_RAW_FEATURES + MLB_DERIVED_FEATURES
 
 NBA_BASE_FEATURES = [
     "period", "time_remaining_sec", "game_time_elapsed_sec",
@@ -104,7 +113,29 @@ NBA_BASE_FEATURES = [
 ]
 
 
+def _add_mlb_derived(df: pd.DataFrame) -> pd.DataFrame:
+    """Add outs_elapsed / outs_remaining / pace_runs columns in place (returns df)."""
+    if all(c in df.columns for c in MLB_DERIVED_FEATURES):
+        return df
+    inning = df["inning"].astype("int32")
+    top_bottom = df["top_bottom"].astype("int32")
+    outs = df["outs"].astype("int32")
+    # 3 outs per half-inning; top_bottom: 0=top (0..2 of half), 1=bottom (3..5)
+    outs_elapsed = (inning - 1) * 6 + top_bottom * 3 + outs
+    outs_remaining = (54 - outs_elapsed).clip(lower=0)
+    # Extrapolated final total. For outs_elapsed < 3 use a small floor so we
+    # don't divide-by-zero and don't over-amplify a single run in the 1st.
+    safe_outs = outs_elapsed.clip(lower=3)
+    pace = df["total_runs_so_far"].astype("float32") / safe_outs * 54.0
+    df = df.copy()
+    df["outs_elapsed"] = outs_elapsed.astype("int32")
+    df["outs_remaining"] = outs_remaining.astype("int32")
+    df["pace_runs"] = pace.astype("float32")
+    return df
+
+
 def mlb_moneyline_features(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    df = _add_mlb_derived(df)
     X = df[MLB_BASE_FEATURES].to_numpy(dtype=np.float32)
     y = df["home_win"].to_numpy(dtype=np.int8)
     return X, y
@@ -139,6 +170,7 @@ def mlb_spread_features(
     if line_choices is None:
         line_choices = [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5]
 
+    df = _add_mlb_derived(df)
     df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
@@ -183,6 +215,7 @@ def mlb_ou_features(
     if line_choices is None:
         line_choices = [5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5]
 
+    df = _add_mlb_derived(df)
     df = _maybe_subsample(df)
     parts_X: list[np.ndarray] = []
     parts_y: list[np.ndarray] = []
@@ -238,18 +271,23 @@ def make_logreg_pipeline() -> Pipeline:
 
 
 def make_xgboost_pipeline():
-    """XGBoost fallback pipeline (only imported when requested)."""
+    """XGBoost pipeline — captures nonlinear interactions logreg can't."""
     from xgboost import XGBClassifier  # noqa: WPS433
     return Pipeline([
+        # Trees don't need scaling but it's harmless and keeps the pipeline
+        # interface consistent across model types
         ("scaler", StandardScaler()),
         ("clf", XGBClassifier(
-            n_estimators=200,
+            n_estimators=300,
             max_depth=6,
-            learning_rate=0.1,
-            use_label_encoder=False,
+            learning_rate=0.08,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            min_child_weight=8,
             eval_metric="logloss",
             n_jobs=-1,
             verbosity=0,
+            tree_method="hist",
         )),
     ])
 
@@ -386,8 +424,10 @@ def main() -> int:
     parser.add_argument("--sport", choices=["mlb", "nba", "both"], default="both")
     parser.add_argument("--seasons", type=int, nargs="*", default=None,
                         help="Specific seasons to train on (default: all available)")
-    parser.add_argument("--xgboost", action="store_true",
-                        help="Use XGBoost instead of logistic regression")
+    parser.add_argument("--xgboost", action="store_true", default=True,
+                        help="Use XGBoost (default). Pass --logreg to fall back")
+    parser.add_argument("--logreg", dest="xgboost", action="store_false",
+                        help="Use logistic regression instead of XGBoost")
     args = parser.parse_args()
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)

@@ -71,12 +71,20 @@ class EVEngine:
                 decision = self.decision.evaluate(pos)
                 tag = f"[{pos.condition_id[:8]}] {pos.market_title[:48]}"
                 if decision.action == "cashout":
-                    logger.warning(
-                        "CASHOUT %s dir=%s %s",
-                        tag, pos.direction, decision.reason,
-                    )
+                    sent = False
                     if not self.dry_run:
-                        await self.alerter.maybe_alert(pos, decision)
+                        sent = await self.alerter.maybe_alert(pos, decision)
+                    if sent:
+                        logger.warning(
+                            "CASHOUT-ALERT %s dir=%s %s",
+                            tag, pos.direction, decision.reason,
+                        )
+                    else:
+                        # Either dry-run or deduped — log at INFO so we don't spam WARN
+                        logger.info(
+                            "cashout-deduped %s dir=%s %s",
+                            tag, pos.direction, decision.reason,
+                        )
                 elif decision.action == "hold":
                     logger.info("HOLD    %s %s", tag, decision.reason)
                 else:
