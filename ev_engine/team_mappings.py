@@ -112,11 +112,14 @@ NBA_TEAMS: dict[str, dict] = {
 # ─────────────────────────────────────────────────────────────────────
 
 def _build_name_index(teams: dict[str, dict]) -> dict[str, str]:
-    """Map lowercased name / alias / abbr -> canonical abbr."""
+    """Map lowercased name / alias / abbr / espn-abbr -> canonical abbr."""
     idx: dict[str, str] = {}
     for abbr, info in teams.items():
         idx[abbr.lower()] = abbr
         idx[info["name"].lower()] = abbr
+        espn = info.get("espn")
+        if espn:
+            idx[espn.lower()] = abbr
         for alt in info["alts"]:
             idx[alt.lower()] = abbr
     return idx
