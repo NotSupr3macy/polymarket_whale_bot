@@ -493,6 +493,13 @@ class WhaleVIPTracker:
         # cfg.tilt_mute_hours to suppress alerts while the whale is
         # presumed to be tilting.
         self._last_loss_ts: float = 0.0
+        # BULLETPROOF BACKSTOP: in-memory set of cids we've already processed
+        # a resolution for in this process. Belt-and-suspenders alongside the
+        # self.baseline[cid]["status"] = "closed" write — if the baseline dict
+        # update is somehow bypassed (e.g. the cid isn't in self.baseline at
+        # the moment of resolution, or another code path resets status), this
+        # set still catches the dup. Cleared only on explicit re-open.
+        self._resolved_cids_this_session: set[str] = set()
 
     def _should_alert(self, title: str) -> bool:
         """Return True if this market's sport passes the solo_alert_sports filter."""
@@ -1030,6 +1037,9 @@ class WhaleVIPTracker:
                 )
                 # Clear the closed flag so the promote block refreshes baseline.
                 self.baseline[cid]["status"] = None
+                # Clear the bulletproof resolved-set too so the re-opened
+                # position can be freshly tracked again.
+                self._resolved_cids_this_session.discard(cid)
                 # Reset DB so cashout engine sees it alive again.
                 try:
                     conn = sqlite3.connect(self.db_path)
@@ -1219,7 +1229,11 @@ class WhaleVIPTracker:
 
         # ── Detect RESOLUTIONS ──────────────────────────────────────
         for cid, prev in list(self.baseline.items()):
-            if prev.get("status") == "closed":
+            # Skip if baseline marks closed OR this process has already
+            # processed a resolution for this cid. The in-memory set is a
+            # belt-and-suspenders backstop — if baseline[cid]["status"] write
+            # is somehow bypassed, this set still catches repeat resolutions.
+            if prev.get("status") == "closed" or cid in self._resolved_cids_this_session:
                 continue
 
             cur = current.get(cid)
@@ -1251,6 +1265,7 @@ class WhaleVIPTracker:
                     self.cfg.alias, outcome, prev.get("title", "?")[:40],
                 )
                 self._mark_resolved(cid, outcome, now)
+                self._resolved_cids_this_session.add(cid)  # backstop
                 if cid in self.baseline:
                     import time as _time_mod
                     self.baseline[cid]["status"] = "closed"
@@ -1281,6 +1296,7 @@ class WhaleVIPTracker:
             # → infinite log spam. Discovered when TheOnlyHuman's NBA-only
             # sport filter rejected an MLB Royals-Tigers resolution and the
             # same RESOLVED line appeared 5× in 1 minute.
+            self._resolved_cids_this_session.add(cid)  # bulletproof backstop
             if cid in self.baseline:
                 import time as _time_mod
                 self.baseline[cid]["status"] = "closed"

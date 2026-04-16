@@ -202,6 +202,10 @@ class TexasKidTracker:
         # UNLESS the cumulative delta since last alert exceeds $20K (genuine
         # large size-up should break through the cooldown).
         self._size_alert_cooldown: dict[str, tuple[float, float]] = {}
+        # Bulletproof backstop: in-memory set of cids we've already processed
+        # a resolution for in this process. Prevents re-RESOLVED loops even
+        # if the baseline[cid]["status"] = "closed" write is somehow bypassed.
+        self._resolved_cids_this_session: set[str] = set()
 
     async def start(self) -> None:
         init_db()
@@ -366,6 +370,8 @@ class TexasKidTracker:
                     )
                     # Clear closed flag so baseline promote refreshes size_usd.
                     self.baseline[cid]["status"] = None
+                    # Clear backstop so re-opened position can be re-tracked.
+                    self._resolved_cids_this_session.discard(cid)
                     try:
                         conn = sqlite3.connect(DB_PATH)
                         conn.execute(
@@ -488,7 +494,9 @@ class TexasKidTracker:
 
         # ── Detect RESOLUTIONS ─────────────────────────────────────────
         for cid, prev in list(self.baseline.items()):
-            if prev.get("status") == "closed":
+            # Belt-and-suspenders: skip if baseline marks closed OR the
+            # in-memory backstop set has already processed this cid.
+            if prev.get("status") == "closed" or cid in self._resolved_cids_this_session:
                 continue
 
             cur = current.get(cid)
@@ -540,7 +548,8 @@ class TexasKidTracker:
                     )
                     await send_telegram(msg)
 
-            # Always update DB + baseline regardless of first_poll
+            # Always update DB + baseline + backstop set regardless of first_poll
+            self._resolved_cids_this_session.add(cid)
             try:
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute(
