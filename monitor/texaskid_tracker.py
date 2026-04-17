@@ -139,7 +139,8 @@ CREATE TABLE IF NOT EXISTS texaskid_positions (
     first_seen_at TEXT NOT NULL,
     last_updated TEXT,
     alert_sent INTEGER DEFAULT 0,
-    resolved_at TEXT
+    resolved_at TEXT,
+    muted_reason TEXT
 );
 """
 
@@ -147,9 +148,47 @@ CREATE TABLE IF NOT EXISTS texaskid_positions (
 def init_db() -> None:
     conn = sqlite3.connect(DB_PATH)
     conn.executescript(TRACKER_SCHEMA)
+    # Idempotent migration for old DBs: add muted_reason column if absent.
+    # muted_reason gates downstream radars (game_start, market_consensus,
+    # whale_consensus) — suppressed texaskid positions will now be silent
+    # across the entire alert chain, not just the whale tracker's own alerts.
+    try:
+        conn.execute("ALTER TABLE texaskid_positions ADD COLUMN muted_reason TEXT")
+        logger.info("migrated texaskid_positions: added muted_reason column")
+    except sqlite3.OperationalError:
+        pass  # already exists
     conn.commit()
     conn.close()
     logger.info("TexasKid tracker DB initialized: %s", DB_PATH)
+
+
+def _mute_texaskid_position(cid: str, reason: str) -> None:
+    """Write muted_reason so downstream radars skip this position."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "UPDATE texaskid_positions SET muted_reason = ? WHERE condition_id = ?",
+            (reason, cid),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def _unmute_texaskid_position(cid: str) -> None:
+    """Clear muted_reason — call when a previously-muted position becomes
+    alert-eligible (e.g. SIZE UP pushes it into the allowed bucket)."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "UPDATE texaskid_positions SET muted_reason = NULL WHERE condition_id = ?",
+            (cid,),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 # ── Telegram ──────────────────────────────────────────────────────────
@@ -372,6 +411,9 @@ class TexasKidTracker:
                     self.baseline[cid]["status"] = None
                     # Clear backstop so re-opened position can be re-tracked.
                     self._resolved_cids_this_session.discard(cid)
+                    # Clear stale muted_reason — new gate checks will re-mute
+                    # if this entry still fails.
+                    _unmute_texaskid_position(cid)
                     try:
                         conn = sqlite3.connect(DB_PATH)
                         conn.execute(
@@ -409,8 +451,10 @@ class TexasKidTracker:
                 except Exception as e:
                     logger.error("DB insert failed: %s", e)
 
-                # Performance filter: gate Telegram (DB insert above is unaffected)
+                # Performance filter: gate Telegram AND mute the DB row so
+                # downstream radars (game_start, consensus) skip this cid too.
                 if _should_alert_by_performance(pos["price"], pos["size_usd"], pos["title"]):
+                    _unmute_texaskid_position(cid)
                     msg = (
                         f"🤠 <b>TEXASKID NEW POSITION</b>\n"
                         f"\n"
@@ -425,6 +469,8 @@ class TexasKidTracker:
                         f"Consider placing your own limit order at ~${pos['price']:.2f}"
                     )
                     await send_telegram(msg)
+                else:
+                    _mute_texaskid_position(cid, "performance_filter")
 
         # ── Detect significant SIZE INCREASES on existing positions ─────
         import time as _time
@@ -460,6 +506,10 @@ class TexasKidTracker:
                     if not cooldown_active or breakthrough:
                         # Performance filter: gate on new total size (not delta)
                         if _should_alert_by_performance(pos["price"], new_size, pos["title"]):
+                            # Position now qualifies — unmute so downstream
+                            # radars pick it up (previous mute may have been
+                            # set at NEW if initial size was too small etc.).
+                            _unmute_texaskid_position(cid)
                             self._size_alert_cooldown[cid] = (now_ts, new_size)
                             label = "🤠📈📈 <b>TEXASKID MAJOR SIZE-UP</b>" if breakthrough else "🤠📈 <b>TEXASKID ADDING SIZE</b>"
                             show_delta = delta_since_alert if breakthrough else (new_size - prev_size)
@@ -474,6 +524,8 @@ class TexasKidTracker:
                                 f"<i>Time: {now_pst}</i>"
                             )
                             await send_telegram(msg)
+                        else:
+                            _mute_texaskid_position(cid, "performance_filter")
                     else:
                         logger.info(
                             "SIZE UP (cooldown, skipping Telegram): %s | delta_since_alert=$%.0f",

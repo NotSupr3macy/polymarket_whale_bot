@@ -404,6 +404,7 @@ CREATE TABLE IF NOT EXISTS tracked_whale_positions (
     last_updated TEXT,
     alert_sent INTEGER DEFAULT 0,
     resolved_at TEXT,
+    muted_reason TEXT,
     PRIMARY KEY (wallet, condition_id)
 );
 
@@ -411,14 +412,33 @@ CREATE INDEX IF NOT EXISTS idx_tracked_whale_positions_wallet_status
     ON tracked_whale_positions(wallet, status);
 CREATE INDEX IF NOT EXISTS idx_tracked_whale_positions_status
     ON tracked_whale_positions(status);
+CREATE INDEX IF NOT EXISTS idx_tracked_whale_positions_muted_reason
+    ON tracked_whale_positions(muted_reason);
 """
 
 
 def init_db(db_path: str = DB_PATH) -> None:
-    """Create `tracked_whale_positions` if missing. Idempotent."""
+    """Create `tracked_whale_positions` if missing. Idempotent.
+
+    Also migrates existing tables by adding `muted_reason` column if missing.
+    `muted_reason` gates downstream radar alerts — when the whale tracker
+    suppresses a NEW POSITION alert for any reason (sport/perf/subtype/hour/
+    tilt/multi-trade), it writes the reason here, and all radars
+    (game_start_radar, market_consensus_radar, whale_consensus_radar) skip
+    the position. Without this, a suppressed NEW POSITION would still
+    trigger "game starting" / "consensus" alerts downstream.
+    """
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(TRACKED_SCHEMA)
+        # Idempotent migration for old DBs: add muted_reason column if absent
+        try:
+            conn.execute(
+                "ALTER TABLE tracked_whale_positions ADD COLUMN muted_reason TEXT"
+            )
+            logger.info("migrated tracked_whale_positions: added muted_reason column")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         conn.commit()
     finally:
         conn.close()
@@ -585,6 +605,55 @@ class WhaleVIPTracker:
             self.cfg.alias, title[:40],
         )
         return False
+
+    def _mute_position(self, condition_id: str, reason: str) -> None:
+        """Flag the position in tracked_whale_positions with a mute reason.
+
+        Downstream radars (game_start, market_consensus, whale_consensus)
+        skip positions with non-NULL muted_reason. Without this, a
+        NEW POSITION alert that was suppressed by our performance filter
+        would still fire "GAME STARTING NOW" and "SAME-MARKET CONSENSUS"
+        alerts from the radar components, bypassing the filter entirely.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute(
+                """
+                UPDATE tracked_whale_positions
+                SET muted_reason = ?
+                WHERE wallet = ? AND condition_id = ?
+                """,
+                (reason, self.cfg.wallet.lower(), condition_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.debug("%s: mute write failed for %s: %s",
+                         self.cfg.alias, condition_id[:12], e)
+
+    def _unmute_position(self, condition_id: str) -> None:
+        """Clear muted_reason — use when a position becomes alert-worthy again.
+
+        Called when:
+          - SIZE UP pushes a previously-muted position into alert-eligible
+            size/price range (whale's conviction grew into our sweet spot).
+          - RE-OPEN fires on a previously-closed cid that's now alive again.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute(
+                """
+                UPDATE tracked_whale_positions
+                SET muted_reason = NULL
+                WHERE wallet = ? AND condition_id = ?
+                """,
+                (self.cfg.wallet.lower(), condition_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.debug("%s: unmute write failed for %s: %s",
+                         self.cfg.alias, condition_id[:12], e)
 
     # ── Lifecycle ──
 
@@ -1040,6 +1109,9 @@ class WhaleVIPTracker:
                 # Clear the bulletproof resolved-set too so the re-opened
                 # position can be freshly tracked again.
                 self._resolved_cids_this_session.discard(cid)
+                # Clear stale muted_reason from the prior life of this cid —
+                # gate checks below will re-mute if the new entry still fails.
+                self._unmute_position(cid)
                 # Reset DB so cashout engine sees it alive again.
                 try:
                     conn = sqlite3.connect(self.db_path)
@@ -1066,33 +1138,44 @@ class WhaleVIPTracker:
 
             self._insert_new_position(cid, pos, now)
 
-            # Sport filter: still track in DB but skip Telegram for filtered sports
+            # Sport filter: still track in DB but skip Telegram for filtered sports.
+            # Mute in DB so downstream radars (game_start, consensus) also skip.
             if not self._should_alert(pos["title"]):
                 logger.info(
                     "SUPPRESSED alert [%s]: %s (sport not in solo_alert_sports)",
                     self.cfg.alias, pos["title"][:40],
                 )
+                self._mute_position(cid, "sport")
                 continue
 
             # Performance filter: gate on (entry_price, size_usd) bucket
             if not self._should_alert_by_performance(
                 pos["price"], pos["size_usd"], pos["title"]
             ):
+                self._mute_position(cid, "performance_filter")
                 continue
 
             # Subtype / hour-of-day / tilt guards
             if not self._should_alert_by_subtype(pos["title"]):
+                self._mute_position(cid, "subtype")
                 continue
             if not self._should_alert_by_hour(pos["title"]):
+                self._mute_position(cid, "hour")
                 continue
             if not self._should_alert_by_tilt(pos["title"]):
+                self._mute_position(cid, "tilt")
                 continue
 
             # Require-multi-trade: suppress NEW POSITION alerts; SIZE UP
             # on the same cid later will still pass (baseline is populated
             # by _insert_new_position above regardless of alert).
             if not self._should_alert_initial(pos["title"]):
+                self._mute_position(cid, "require_multi_trade")
                 continue
+
+            # All gates passed — ensure position is un-muted so radars alert
+            # (covers the case where a previously-muted cid is now qualifying).
+            self._unmute_position(cid)
 
             ctx_lines = await self._enrich_lines(
                 condition_id=cid,
@@ -1159,23 +1242,33 @@ class WhaleVIPTracker:
             self._update_position_size(cid, new_size, pos["price"], now)
 
             if not self._should_alert(pos["title"]):
+                self._mute_position(cid, "sport")
                 continue
 
             # Performance filter on the new total size (not delta)
             if not self._should_alert_by_performance(
                 pos["price"], new_size, pos["title"]
             ):
+                self._mute_position(cid, "performance_filter")
                 continue
 
             # Subtype / hour-of-day / tilt guards (same as NEW path).
             # Note: require_multi_trade is NOT checked here — SIZE UP is
             # exactly what we want to let through for those whales.
             if not self._should_alert_by_subtype(pos["title"]):
+                self._mute_position(cid, "subtype")
                 continue
             if not self._should_alert_by_hour(pos["title"]):
+                self._mute_position(cid, "hour")
                 continue
             if not self._should_alert_by_tilt(pos["title"]):
+                self._mute_position(cid, "tilt")
                 continue
+
+            # All gates passed — unmute so downstream radars see this position
+            # (covers the case of a whale scaling from muted bucket into
+            # alert-eligible bucket, e.g. small initial → size up past threshold).
+            self._unmute_position(cid)
 
             # Cooldown: suppress Telegram for 10 min per market UNLESS
             # the cumulative delta since last alert exceeds $20K (genuine
