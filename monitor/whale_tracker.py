@@ -420,25 +420,38 @@ CREATE INDEX IF NOT EXISTS idx_tracked_whale_positions_muted_reason
 def init_db(db_path: str = DB_PATH) -> None:
     """Create `tracked_whale_positions` if missing. Idempotent.
 
-    Also migrates existing tables by adding `muted_reason` column if missing.
-    `muted_reason` gates downstream radar alerts — when the whale tracker
-    suppresses a NEW POSITION alert for any reason (sport/perf/subtype/hour/
-    tilt/multi-trade), it writes the reason here, and all radars
-    (game_start_radar, market_consensus_radar, whale_consensus_radar) skip
-    the position. Without this, a suppressed NEW POSITION would still
-    trigger "game starting" / "consensus" alerts downstream.
+    Migration ordering matters: we must run ALTER TABLE ADD COLUMN
+    muted_reason BEFORE executing TRACKED_SCHEMA, because TRACKED_SCHEMA
+    includes `CREATE INDEX ... ON tracked_whale_positions(muted_reason)`.
+    If the table already exists without the column, the CREATE INDEX fails
+    with "no such column: muted_reason" and the whole init crashes.
+
+    Order:
+      1. ALTER TABLE ADD COLUMN (no-op if column exists OR table missing)
+      2. executescript(TRACKED_SCHEMA) — creates table+indexes on fresh
+         installs, or just the new muted_reason index on migrated DBs.
+
+    `muted_reason` gates downstream radar alerts — suppressed NEW POSITIONs
+    must not leak through game_start_radar / consensus radars.
     """
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(TRACKED_SCHEMA)
-        # Idempotent migration for old DBs: add muted_reason column if absent
+        # Step 1: migration. Fails (a) when the column already exists
+        # ("duplicate column"), or (b) when the table itself doesn't exist
+        # yet on a fresh install. Both cases are fine — swallow and proceed.
         try:
             conn.execute(
                 "ALTER TABLE tracked_whale_positions ADD COLUMN muted_reason TEXT"
             )
-            logger.info("migrated tracked_whale_positions: added muted_reason column")
+            conn.commit()
+            logger.info(
+                "migrated tracked_whale_positions: added muted_reason column"
+            )
         except sqlite3.OperationalError:
-            pass  # column already exists
+            pass
+
+        # Step 2: run full schema (creates table if absent, indexes if absent).
+        conn.executescript(TRACKED_SCHEMA)
         conn.commit()
     finally:
         conn.close()
