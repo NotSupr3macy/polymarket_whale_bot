@@ -14,12 +14,12 @@
       "total_positions": 58,
       "sports_pct": 1.0
     },
-    "source": "Automated discovery pipeline \u00e2\u20ac\u201d shadow verified April 2026",
+    "source": "Automated discovery pipeline \u2014 shadow verified April 2026",
     "notes": "TOP WHALE. Only whale with both passing recency gate AND historical track record. MLB + NBA specialist. Protected from auto-demotion.",
     "added_at": "2026-04-09",
     "added_by": "discovery_pipeline",
     "promoted_at": "2026-04-09",
-    "promotion_reason": "manual_early \u00e2\u20ac\u201d 53 trades, 77.4% WR, $1.18M shadow PnL"
+    "promotion_reason": "manual_early \u2014 53 trades, 77.4% WR, $1.18M shadow PnL"
   },
   "0x507e52ef684ca2dd91f90a9d26d149dd3288beae": {
     "alias": "GamblingIsAllYouNeed",
@@ -37,8 +37,8 @@
       "sports_pct": 0.998,
       "leaderboard_rank": 12
     },
-    "source": "Discovery pipeline \u00e2\u20ac\u201d whale scout April 2026. WR verified by recency gate (cashPnl method).",
-    "notes": "STRONGEST ACTIVE WHALE by volume. 61% on 84 bets with +$121K in 14 days. MLB specialist \u00e2\u20ac\u201d solo alerts fire for MLB only via gambling_tracker.py.",
+    "source": "Discovery pipeline \u2014 whale scout April 2026. WR verified by recency gate (cashPnl method).",
+    "notes": "STRONGEST ACTIVE WHALE by volume. 61% on 84 bets with +$121K in 14 days. MLB specialist \u2014 solo alerts fire for MLB only via gambling_tracker.py.",
     "added_at": "2026-04-11",
     "added_by": "manual_from_shadow",
     "promoted_at": "2026-04-13",
@@ -82,14 +82,14 @@
       "recency_pnl": 369091,
       "recency_roi": 0.214,
       "nhl_stake_30d": 1719776,
-      "nba_record": "0W/1L -$84K (one bad NBA bet \u00e2\u20ac\u201d NOT tailable)",
+      "nba_record": "0W/1L -$84K (one bad NBA bet \u2014 NOT tailable)",
       "all_time_pnl": 12064766,
       "lifetime_months": 10,
       "profile_views": 803700,
       "total_predictions": 2460
     },
     "source": "Co-trader scan from texaskid markets, 2026-04-13. Discovered via find_texaskid_cotraders.py (8 market overlaps with texaskid). Verified via Polymarket profile + 30d Gamma-resolved scan.",
-    "notes": "ELITE NHL SPECIALIST. $12M lifetime PnL, 10 months on platform. 30d NHL: 42W/39L = 52% WR, +$369K, +21% ROI on $1.72M stake \u00e2\u20ac\u201d profitable via price selection, not high hit rate. NHL-only solo alerts (0/1 on NBA was a -$84K outlier). Protected. Sells = 0 in 30d (pure hold-to-resolution like texaskid).",
+    "notes": "ELITE NHL SPECIALIST. $12M lifetime PnL, 10 months on platform. 30d NHL: 42W/39L = 52% WR, +$369K, +21% ROI on $1.72M stake \u2014 profitable via price selection, not high hit rate. NHL-only solo alerts (0/1 on NBA was a -$84K outlier). Protected. Sells = 0 in 30d (pure hold-to-resolution like texaskid).",
     "added_at": "2026-04-13",
     "added_by": "cotrader_discovery",
     "promoted_at": "2026-04-13",
@@ -109,36 +109,18 @@
       "recency_roi_nba": 0.29,
       "nba_stake_30d": 694120,
       "mlb_record": "5W/0L 100% WR, +$21K, +83% ROI (small sample)",
-      "soccer_loss": "-$85K (Liverpool) \u00e2\u20ac\u201d NOT tailable outside NBA",
-      "other_loss": "-$108K (Crystal Palace) \u00e2\u20ac\u201d NOT tailable outside NBA",
+      "soccer_loss": "-$85K (Liverpool) \u2014 NOT tailable outside NBA",
+      "other_loss": "-$108K (Crystal Palace) \u2014 NOT tailable outside NBA",
       "all_time_pnl": 1020931,
       "joined": "2025-10",
       "biggest_win": 181800
     },
     "source": "Co-trader scan from texaskid markets, 2026-04-13. Discovered via find_texaskid_cotraders.py (4 market overlaps with texaskid). Verified via Polymarket profile + 30d Gamma-resolved scan.",
-    "notes": "ELITE NBA TOTALS SPECIALIST. $1M lifetime PnL. 30d NBA: 40W/25L = 62% WR, +$201K, +29% ROI on $694K stake \u00e2\u20ac\u201d bets NBA O/U (Pistons O/U, Heat O/U, Suns O/U, etc). NBA-only solo alerts; soccer/other cost -$193K in 30d. Pure hold (0 sells in 14d). Protected.",
+    "notes": "ELITE NBA TOTALS SPECIALIST. $1M lifetime PnL. 30d NBA: 40W/25L = 62% WR, +$201K, +29% ROI on $694K stake \u2014 bets NBA O/U (Pistons O/U, Heat O/U, Suns O/U, etc). NBA-only solo alerts; soccer/other cost -$193K in 30d. Pure hold (0 sells in 14d). Protected.",
     "added_at": "2026-04-13",
     "added_by": "cotrader_discovery",
     "promoted_at": "2026-04-13",
     "promotion_reason": "62% NBA WR + 29% NBA ROI, +$201K NBA PnL in 30d. Highest-conviction NBA signal in whale pool (beats texaskid's 8W/4L NBA sample)."
-  },
-  "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
-    "alias": "gatorr",
-    "tier": 3,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.67,
-    "avg_bet": 30000,
-    "verified_stats": {
-      "real_wr": "67% (4W/2L, 6 resolved in 14d recency gate)",
-      "recency_pnl": 18000,
-      "recency_roi": 0.42
-    },
-    "source": "ScanWhale verified + position audit April 2026",
-    "notes": "LOW DATA but positive trend. 67% on 6 bets, +$18K. Consensus only \u00e2\u20ac\u201d promote to solo after 15+ resolved bets if WR holds.",
-    "added_at": "2026-03-11",
-    "added_by": "manual"
   },
   "0x492442eab586f242b53bda933fd5de859c8a3782": {
     "alias": "nbasniper",
@@ -153,28 +135,10 @@
       "recency_pnl": -2000,
       "historical_record": "9W/0L on earlier resolved positions"
     },
-    "source": "Whale research 2026-04-11 \u00e2\u20ac\u201d pure NBA specialist",
-    "notes": "NBA specialist. Was 9W/0L historically but only 1W/1L in recency window. Consensus only \u00e2\u20ac\u201d promote to solo after 15+ resolved if WR >= 60%.",
+    "source": "Whale research 2026-04-11 \u2014 pure NBA specialist",
+    "notes": "NBA specialist. Was 9W/0L historically but only 1W/1L in recency window. Consensus only \u2014 promote to solo after 15+ resolved if WR >= 60%.",
     "added_at": "2026-04-11",
     "added_by": "manual_research"
-  },
-  "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
-    "alias": "beachboy4",
-    "tier": 3,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.5,
-    "avg_bet": 400000,
-    "verified_stats": {
-      "real_wr": "50% (2W/2L, 4 resolved in 14d recency gate)",
-      "recency_pnl": -306000,
-      "recency_roi": -0.53
-    },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA. 2W/2L but -$306K PnL (big losses outweigh wins). Consensus only. Remove if next recency gate shows continued losses.",
-    "added_at": "2026-03-11",
-    "added_by": "manual"
   },
   "0x36a3f17401e395ef4cb1b7f42bcdb8ab8e15fafb": {
     "alias": "gfjoigfsjoigsjoi",
@@ -212,6 +176,134 @@
     "added_at": "2026-04-12",
     "added_by": "auto_rotation"
   },
+  "0x03e8a544e97eeff5753bc1e90d46e5ef22af1697": {
+    "alias": "weflyhigh",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 11682,
+    "verified_stats": {
+      "monthly_pnl": 464364.22742890567,
+      "monthly_volume": 1168265.751772
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0xa5ea13a81d2b7e8e424b182bdc1db08e756bd96a": {
+    "alias": "bossoskil1",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 11206,
+    "verified_stats": {
+      "monthly_pnl": 298595.1109894328,
+      "monthly_volume": 1120669.880432
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0xfe787d2da716d60e8acff57fb87eb13cd4d10319": {
+    "alias": "ferrariChampions2026",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 22202,
+    "verified_stats": {
+      "monthly_pnl": 235624.91491624343,
+      "monthly_volume": 2220223.9255899996
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0x777d9f00c2b4f7b829c9de0049ca3e707db05143": {
+    "alias": "CarlosMC",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 5000,
+    "verified_stats": {
+      "monthly_pnl": 181569.70121664344,
+      "monthly_volume": 7703.451574999999
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0xc257ea7e3a81ca8e16df8935d44d513959fa358e": {
+    "alias": "YT-JuicySlots",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 5000,
+    "verified_stats": {
+      "monthly_pnl": 162862.11420666138,
+      "monthly_volume": 264094.681299
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0x13414a77a4be48988851c73dfd824d0168e70853": {
+    "alias": "FAZES1MPLE",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 5000,
+    "verified_stats": {
+      "monthly_pnl": 138991.2216301828,
+      "monthly_volume": 364722.095937
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0xbddf61af533ff524d27154e589d2d7a81510c684": {
+    "alias": "Countryside",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 6419,
+    "verified_stats": {
+      "monthly_pnl": 126570.25172777823,
+      "monthly_volume": 641949.329975
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
+  "0x32b484581fc5606de9c1e43af4636b6be9bc8b21": {
+    "alias": "0x32b484581fc5606dE9C1e43AF4636b6Be9BC8B21-1774274303653",
+    "tier": 3,
+    "protected": false,
+    "category": "multi",
+    "solo_enabled": false,
+    "win_rate": 0.57,
+    "avg_bet": 5000,
+    "verified_stats": {
+      "monthly_pnl": 119613.3404960016,
+      "monthly_volume": 252304.51856399997
+    },
+    "source": "Auto-rotation from leaderboard, 2026-04-14",
+    "added_at": "2026-04-14",
+    "added_by": "auto_rotation"
+  },
   "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960": {
     "alias": "sportmaster777",
     "tier": 2,
@@ -230,6 +322,8 @@
     "source": "Promoted from shadow pool 2026-04-18 after forward analysis",
     "notes": "Promoted to paper trader with size filter $500-$15K. All 3 sports OK, subtype agnostic. Base $3 paper allocation.",
     "added_at": "2026-04-18",
-    "added_by": "promotion_review"
+    "added_by": "promotion_review",
+    "promoted_at": "2026-04-18",
+    "promotion_reason": "655 resolved shadow trades, 53.3% WR, +9.2% ROI, clean pattern"
   }
 }
