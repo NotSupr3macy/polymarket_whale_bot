@@ -570,30 +570,55 @@ async def close_paper_position(
     # Paper P&L at resolution:
     #   WIN:  size * (1/entry - 1) = size/entry - size
     #   LOSS: -size
-    outcome = src["outcome"]
+    tracker_outcome = src["outcome"]
     entry = pp["entry_price"]
     size = pp["paper_size_usd"]
 
-    # If the whale's position disappeared (outcome='RESOLVED'), we don't
-    # know win/loss from our tracker. Last-resort: ask Gamma for the
-    # market's final outcomePrices. Fixes the "📋 $0 P&L" blind spot for
-    # high-frequency whales like sportmaster777 who redeem quickly.
-    if outcome == "RESOLVED":
-        gamma_result = await resolve_ambiguous_via_gamma(
-            pp["condition_id"], pp["direction"]
-        )
-        if gamma_result is not None:
-            gamma_outcome, _ = gamma_result
+    # CRITICAL: always verify the outcome via Gamma API using THIS PAPER
+    # POSITION'S direction — don't trust the whale_tracker's outcome field.
+    #
+    # Why: whale_tracker only tracks ONE side per (wallet, cid). If a whale
+    # holds BOTH sides of a market (e.g. original bet on Timberwolves, then
+    # bought Nuggets when Timberwolves was losing), the tracker may pick the
+    # winning side's price at resolution → wrongly mark outcome='WIN' even
+    # though our paper position was on the losing side.
+    #
+    # Confirmed bug on Apr 18: sportmaster777 Timberwolves ML @ $0.324 was
+    # marked WIN +$6.25 by paper_trader trusting tracker, but Gamma showed
+    # Timberwolves=$0.000 (losing side). paper was actually LOSS −$3.
+    #
+    # Gamma's outcomePrices are the source of truth — they reflect the
+    # market's actual resolution, not the whale's holdings.
+    outcome = tracker_outcome
+    gamma_result = await resolve_ambiguous_via_gamma(
+        pp["condition_id"], pp["direction"],
+    )
+    if gamma_result is not None:
+        gamma_outcome, _ = gamma_result
+        if gamma_outcome != tracker_outcome and tracker_outcome in ("WIN", "LOSS"):
+            logger.warning(
+                "[%s] tracker outcome %s DISAGREES with Gamma %s for %s "
+                "side=%s — using Gamma (likely dual-side position bug)",
+                pp["whale_alias"], tracker_outcome, gamma_outcome,
+                pp["market_title"][:40], pp["direction"],
+            )
+        elif tracker_outcome == "RESOLVED":
             logger.info(
                 "[%s] ambiguous RESOLVED upgraded via Gamma to %s: %s (cid=%s)",
                 pp["whale_alias"], gamma_outcome,
                 pp["market_title"][:40], pp["condition_id"][:16],
             )
-            outcome = gamma_outcome
-        else:
+        outcome = gamma_outcome
+    else:
+        if tracker_outcome == "RESOLVED":
             logger.info(
                 "[%s] RESOLVED remains ambiguous after Gamma lookup: %s",
                 pp["whale_alias"], pp["market_title"][:40],
+            )
+        else:
+            logger.debug(
+                "[%s] Gamma lookup failed for verification, trusting tracker outcome %s",
+                pp["whale_alias"], tracker_outcome,
             )
 
     if outcome == "WIN":
