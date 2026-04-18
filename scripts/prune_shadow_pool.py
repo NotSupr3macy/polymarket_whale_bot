@@ -53,10 +53,27 @@ MIN_RESOLVED_FOR_ROI_REJECT = 15
 ROI_REJECT_THRESHOLD = -15.0  # %
 
 MIN_RESOLVED_FOR_DEEP_SAMPLE_REJECT = 100
-DEEP_SAMPLE_ROI_THRESHOLD = 0.0  # any negative ROI at this sample size
+# Tightened from 0% to -5%: a large-sample whale at -0.7% ROI is break-even
+# with variance noise, not necessarily a bleeder. Our paper trader's filter
+# may well turn such a whale profitable. Only reject when the deep-sample
+# ROI is clearly negative enough that no filter will save them.
+DEEP_SAMPLE_ROI_THRESHOLD = -5.0  # %
 
 MIN_RESOLVED_FOR_WR_REJECT = 30
 WR_REJECT_THRESHOLD = 40.0  # %
+
+# Protected whales — never auto-reject. These are in the paper trader's
+# active lineup (monitor/paper_trader.py :: BASE_ALLOC) or otherwise
+# manually designated as core. Removing one should require editing this
+# list deliberately, not a statistical auto-prune.
+PROTECTED_ALIASES = {
+    "texaskid",
+    "kch123",
+    "TheOnlyHuman",
+    "GamblingIsAllYouNeed",
+    "nbasniper",
+    "bigsix",
+}
 
 
 def compute_performance(conn: sqlite3.Connection) -> dict[str, dict]:
@@ -106,8 +123,12 @@ def compute_performance(conn: sqlite3.Connection) -> dict[str, dict]:
     return out
 
 
-def decide_action(perf: dict) -> tuple[str, str]:
+def decide_action(alias: str, perf: dict) -> tuple[str, str]:
     """Return (action, reason). action in {'keep', 'reject'}."""
+    # Protected-whale hard override: never auto-reject paper lineup members.
+    if alias in PROTECTED_ALIASES:
+        return "keep", "protected (in paper trader lineup)"
+
     resolved = perf["resolved"]
     roi = perf["roi"]
     wr = perf["wr"]
@@ -116,9 +137,9 @@ def decide_action(perf: dict) -> tuple[str, str]:
     if resolved >= MIN_RESOLVED_FOR_ROI_REJECT and roi <= ROI_REJECT_THRESHOLD:
         return "reject", f"rule-1: resolved={resolved} ROI={roi:.1f}% <= {ROI_REJECT_THRESHOLD}%"
 
-    # Rule 2: deep sample + any negative ROI
+    # Rule 2: deep sample + clearly negative ROI (-5% threshold)
     if resolved >= MIN_RESOLVED_FOR_DEEP_SAMPLE_REJECT and roi < DEEP_SAMPLE_ROI_THRESHOLD:
-        return "reject", f"rule-2: resolved={resolved} ROI={roi:.1f}% (deep sample negative)"
+        return "reject", f"rule-2: resolved={resolved} ROI={roi:.1f}% < {DEEP_SAMPLE_ROI_THRESHOLD}% (deep sample)"
 
     # Rule 3: meaningful sample + very poor WR
     if resolved >= MIN_RESOLVED_FOR_WR_REJECT and wr < WR_REJECT_THRESHOLD:
@@ -176,7 +197,7 @@ def main() -> int:
             actions.append((wallet, alias, "shadowing", "keep-no-data", ""))
             continue
 
-        action, reason = decide_action(perf)
+        action, reason = decide_action(alias, perf)
         if action == "reject":
             actions.append((wallet, alias, "->rejected", reason, perf))
         else:
