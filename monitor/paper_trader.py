@@ -33,6 +33,7 @@ Known v1 limitations:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sqlite3
@@ -423,6 +424,78 @@ def query_source_status(
     }
 
 
+async def resolve_ambiguous_via_gamma(
+    cid: str, direction: str,
+) -> Optional[tuple[str, float]]:
+    """Last-resort lookup for paper positions whose source whale flipped
+    to status='closed' with outcome='RESOLVED' (i.e. the whale's position
+    DISAPPEARED from Polymarket /positions before our tracker caught its
+    price hitting the rails — common for high-frequency whales who redeem
+    or sell out quickly).
+
+    Queries Polymarket Gamma directly for the market's final outcomePrices
+    to determine whether the paper position actually won or lost.
+
+    Returns:
+        ('WIN', 1.0)   — paper direction is the winning side
+        ('LOSS', 0.0)  — paper direction is the losing side
+        None           — couldn't determine (Gamma unavailable, market still
+                         live, or direction not found in outcomes array).
+                         Caller should fall back to $0 break-even behavior.
+    """
+    for params in [
+        {"condition_ids": cid, "closed": "true"},
+        {"condition_ids": cid},
+    ]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://gamma-api.polymarket.com/markets",
+                    params=params,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as r:
+                    if r.status != 200:
+                        continue
+                    data = await r.json()
+        except Exception as e:
+            logger.debug("Gamma lookup err for %s: %s", cid[:16], e)
+            continue
+
+        if not data:
+            continue
+        m = data[0]
+        try:
+            op = m.get("outcomePrices", "[]")
+            op = json.loads(op) if isinstance(op, str) else op
+            oc = m.get("outcomes", "[]")
+            oc = json.loads(oc) if isinstance(oc, str) else oc
+        except Exception:
+            continue
+
+        # Match direction → outcome index (case-insensitive strip compare)
+        idx = next(
+            (i for i, x in enumerate(oc)
+             if str(x).strip().lower() == direction.strip().lower()),
+            None,
+        )
+        if idx is None or idx >= len(op):
+            continue
+        try:
+            wp = float(op[idx])
+        except (TypeError, ValueError):
+            continue
+
+        if wp >= 0.99:
+            return ("WIN", 1.0)
+        if wp <= 0.01:
+            return ("LOSS", 0.0)
+        # Market not actually at rails — genuine ambiguity, keep as break-even.
+        return None
+
+    return None
+
+
 # ── Open / close ──────────────────────────────────────────────────────
 async def open_paper_position(
     conn: sqlite3.Connection, sig: dict, size: float, mult: float,
@@ -488,6 +561,29 @@ async def close_paper_position(
     outcome = src["outcome"]
     entry = pp["entry_price"]
     size = pp["paper_size_usd"]
+
+    # If the whale's position disappeared (outcome='RESOLVED'), we don't
+    # know win/loss from our tracker. Last-resort: ask Gamma for the
+    # market's final outcomePrices. Fixes the "📋 $0 P&L" blind spot for
+    # high-frequency whales like sportmaster777 who redeem quickly.
+    if outcome == "RESOLVED":
+        gamma_result = await resolve_ambiguous_via_gamma(
+            pp["condition_id"], pp["direction"]
+        )
+        if gamma_result is not None:
+            gamma_outcome, _ = gamma_result
+            logger.info(
+                "[%s] ambiguous RESOLVED upgraded via Gamma to %s: %s (cid=%s)",
+                pp["whale_alias"], gamma_outcome,
+                pp["market_title"][:40], pp["condition_id"][:16],
+            )
+            outcome = gamma_outcome
+        else:
+            logger.info(
+                "[%s] RESOLVED remains ambiguous after Gamma lookup: %s",
+                pp["whale_alias"], pp["market_title"][:40],
+            )
+
     if outcome == "WIN":
         pnl = size * (1.0 / entry - 1.0) if entry > 0 else 0.0
         resolution_price = 1.0
