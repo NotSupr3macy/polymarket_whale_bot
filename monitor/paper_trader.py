@@ -104,6 +104,16 @@ BASE_ALLOC = {
     "bigsix": 0.03,                # $3
 }
 
+# Whales exempt from the post-loss tilt-guard multiplier (×0.5).
+# Rationale: tilt guard was designed for kch123 after his $430K
+# after-loss re-entry disaster. But high-frequency whales like
+# GamblingIsAllYouNeed take frequent small losses as normal variance
+# (62.5% WR on 339 resolved = ~127 losses, most not emotional tilt).
+# Halving their base size ($4 → $2) then collides with MIN_POSITION_USD=$3
+# and mutes them entirely for 4 hours after every loss — effectively
+# killing their signal for the rest of the day.
+TILT_GUARD_EXCLUDE = {"GamblingIsAllYouNeed"}
+
 # Which table each whale writes to (texaskid = legacy separate table)
 WHALE_TABLE = {
     "TheOnlyHuman": "tracked_whale_positions",
@@ -275,15 +285,17 @@ def compute_conviction_mult(
         desc_parts.append(f"consensus-{total_whales}x=2.0")
 
     # After-loss: same whale had a LOSS in last 4 hours → halve the size
-    recent_loss = conn.execute(
-        """SELECT 1 FROM paper_positions
-           WHERE whale_alias=? AND outcome='LOSS'
-             AND resolved_at > datetime('now','-4 hours') LIMIT 1""",
-        (alias,),
-    ).fetchone()
-    if recent_loss:
-        mult *= 0.5
-        desc_parts.append("tilt-guard=0.5")
+    # (unless this whale is exempt — see TILT_GUARD_EXCLUDE rationale above).
+    if alias not in TILT_GUARD_EXCLUDE:
+        recent_loss = conn.execute(
+            """SELECT 1 FROM paper_positions
+               WHERE whale_alias=? AND outcome='LOSS'
+                 AND resolved_at > datetime('now','-4 hours') LIMIT 1""",
+            (alias,),
+        ).fetchone()
+        if recent_loss:
+            mult *= 0.5
+            desc_parts.append("tilt-guard=0.5")
 
     return mult, ",".join(desc_parts) if desc_parts else "none"
 

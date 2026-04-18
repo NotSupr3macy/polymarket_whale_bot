@@ -255,6 +255,23 @@ async def run_tests():
     assert mult == 0.5, f'Expected 0.5 mult (tilt guard), got {mult}: {desc}'
     print(f'[OK] T8: tilt guard applied after recent LOSS (mult=0.5)')
 
+    # Test 8.5: GIAYN is exempt from tilt guard (TILT_GUARD_EXCLUDE set).
+    # Seed a recent LOSS for him + assert mult stays 1.0, not 0.5.
+    conn.execute(
+        """INSERT INTO paper_positions
+           (whale_alias, condition_id, direction, market_title, entry_price,
+            paper_size_usd, bankroll_at_open, conviction_mult,
+            opened_at, resolved_at, outcome, resolution_price, paper_pnl,
+            source_table)
+           VALUES ('GamblingIsAllYouNeed','0xgiayn_prior','X','tilt-test',0.5,4,100,1.0,?,?,'LOSS',0.0,-4,
+                   'tracked_whale_positions')""",
+        (one_hr_ago, one_hr_ago),
+    )
+    conn.commit()
+    mult, desc = pt.compute_conviction_mult(conn, 'GamblingIsAllYouNeed', '0xgiayn_new', 'X')
+    assert mult == 1.0, f'GIAYN should be exempt from tilt (expected 1.0, got {mult}): {desc}'
+    print(f'[OK] T8.5: GIAYN exempt from tilt guard (mult={mult} as expected)')
+
     # Test 9: deployment cap ($50 max at 50% of $100 bankroll)
     # Already open: bigsix $3 + kch123 $7.50 (5 * 1.5) = $10.50
     # With $89.50 bankroll + $10.50 deployed = $100 equity, cap = $50
