@@ -82,26 +82,32 @@ DRY_RUN = os.getenv("PAPER_TRADER_SILENT", "").lower() in ("1", "true", "yes")
 STARTING_BANKROLL = 100.0
 POLL_INTERVAL_SEC = 30
 UPDATE_INTERVAL_HOURS = 6
-BANKROLL_DEPLOYMENT_CAP_FRAC = 0.50  # max 50% of bankroll deployed
+BANKROLL_DEPLOYMENT_CAP_FRAC = 0.60  # max 60% of bankroll deployed
+# Apr 18 bump 0.50 → 0.60: with bigger sizes on winning whales
+# (sportmaster $6, GIAYN $5), we'd otherwise clip concurrent fires at
+# 8–9 open positions. Headroom needed so conviction-multiplier
+# consensus trades ($9–$15) can actually land.
 HARD_SIZE_CAP_USD = 15.0  # from 3-way consensus
 MIN_POSITION_USD = 3.0  # below this, we won't open
 
 # Per-whale base allocation (fraction of bankroll) — confirmed by user
 #
-# Apr 18 update: added GamblingIsAllYouNeed at $4 base. Earlier excluded
-# per counterfactual which showed his MLB-only filter over-restricted him
-# (-88% ROI on 9 bets, tiny sample). Live tracking shows he's highly
-# active on MLB (16 passing-filter positions in 6h on Apr 18) with
-# 62.5% WR on 339 resolved shadow trades — break-even ROI but positive
-# signal worth copying.
+# Apr 18 rebalance — based on 20h of live paper-trader data:
+#   sportmaster 6W/1L  (85% WR, +62% ROI)   → $3 → $6  (Kelly underallocated)
+#   GIAYN       4W/1L  (80% WR, +48% ROI)   → $4 → $5
+#   texaskid    0W/4L  (0%  WR, −100% ROI)  → $6 → $3  (size down until data improves)
+#   bigsix      unchanged at $3
+#   Others unchanged pending more data.
+# Base total: $34 (was $33). Deployment cap bumped 0.50 → 0.60 to
+# accommodate larger concurrent fires after conviction multipliers.
 BASE_ALLOC = {
-    "TheOnlyHuman": 0.08,          # $8 on $100
-    "texaskid": 0.06,              # $6
-    "kch123": 0.05,                # $5
+    "TheOnlyHuman": 0.08,          # $8 — unchanged, limited live data
+    "texaskid": 0.03,              # $3 — was $6, trimmed after 0W/4L live
+    "kch123": 0.05,                # $5 — unchanged, quiet whale
     "nbasniper": 0.04,             # $4 — shadow-to-live, no filter yet
-    "GamblingIsAllYouNeed": 0.04,  # $4 — MLB-only, high activity
-    "sportmaster777": 0.03,        # $3 — promoted Apr 18 from shadow pool
-    "bigsix": 0.03,                # $3
+    "GamblingIsAllYouNeed": 0.05,  # $5 — was $4, bumped after 4W/1L live
+    "sportmaster777": 0.06,        # $6 — was $3, bumped after 6W/1L live
+    "bigsix": 0.03,                # $3 — unchanged
 }
 
 # Whales exempt from the post-loss tilt-guard multiplier (×0.5).

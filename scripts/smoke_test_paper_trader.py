@@ -167,9 +167,9 @@ async def run_tests():
     assert n_open == 3, f'Expected 3 open, got {n_open}'
     print(f'[OK] T3: 3 paper positions opened')
 
-    # Check bankroll = 100 - (8 + 6 + 4) = 82
+    # Check bankroll = 100 - (TheOnlyHuman $8 + texaskid $3 + nbasniper $4) = 85
     state_after = pt.load_state(conn)
-    expected_bankroll = 100.0 - (8.0 + 6.0 + 4.0)
+    expected_bankroll = 100.0 - (8.0 + 3.0 + 4.0)
     assert abs(state_after['bankroll_usd'] - expected_bankroll) < 0.01, \
         f'Expected bankroll ${expected_bankroll}, got ${state_after["bankroll_usd"]}'
     print(f'[OK] T4: bankroll correctly deducted: ${state_after["bankroll_usd"]:.2f}')
@@ -196,7 +196,7 @@ async def run_tests():
     # TheOnlyHuman WIN at entry 0.55: pnl = 8 * (1/0.55 - 1) = 8 * 0.8182 = +$6.55
     # Bankroll gain: 8 (stake return) + 6.55 (pnl) = 14.55
     state_after = pt.load_state(conn)
-    expected = (100.0 - 8 - 6 - 4) + 8.0 / 0.55  # stake back + payout at $1
+    expected = (100.0 - 8 - 3 - 4) + 8.0 / 0.55  # stake back + payout at $1
     assert abs(state_after['bankroll_usd'] - expected) < 0.01, \
         f'Expected ${expected:.2f}, got ${state_after["bankroll_usd"]:.2f}'
     print(f'[OK] T5: WIN resolution refilled bankroll to ${state_after["bankroll_usd"]:.2f} (expected ${expected:.2f})')
@@ -272,10 +272,10 @@ async def run_tests():
     assert mult == 1.0, f'GIAYN should be exempt from tilt (expected 1.0, got {mult}): {desc}'
     print(f'[OK] T8.5: GIAYN exempt from tilt guard (mult={mult} as expected)')
 
-    # Test 9: deployment cap ($50 max at 50% of $100 bankroll)
+    # Test 9: deployment cap ($60 max at 60% of $100 equity)
     # Already open: bigsix $3 + kch123 $7.50 (5 * 1.5) = $10.50
-    # With $89.50 bankroll + $10.50 deployed = $100 equity, cap = $50
-    # Try to open $45 more — should fail (would exceed cap)
+    # With $89.50 bankroll + $10.50 deployed = $100 equity, cap = $60
+    # Try to open $55 more — should fail (would exceed $60 cap with $10.50 already out)
     big_sig = {
         'alias': 'TheOnlyHuman', 'cid': '0xbigtest', 'direction': 'X',
         'title': 'big market', 'entry_price': 0.5, 'whale_size_usd': 50000,
@@ -283,8 +283,8 @@ async def run_tests():
         'first_seen_at': future2,
     }
     state_ = pt.load_state(conn)
-    ok, reason = pt.can_open(conn, 45.0, state_)
-    assert not ok, f'Expected rejection at 45$, got ok={ok}'
+    ok, reason = pt.can_open(conn, 55.0, state_)
+    assert not ok, f'Expected rejection at 55$, got ok={ok}'
     print(f'[OK] T9: deploy cap enforced: "{reason}"')
 
     # Test 10: idempotent init_db — rerun should not crash or change state
