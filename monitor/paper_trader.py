@@ -70,7 +70,13 @@ if _env_path.exists():
 
 PAPER_BOT_TOKEN = os.getenv("PAPER_BOT_TOKEN", "")
 PAPER_BOT_CHAT_ID = os.getenv("PAPER_BOT_CHAT_ID", "")
-DRY_RUN = os.getenv("DRY_RUN", "").lower() in ("1", "true", "yes")
+# Paper-trader-specific dry-run flag. Deliberately NOT `DRY_RUN` because the
+# live trading bot (bot.py, config.py) already uses that env var to toggle
+# real-money execution — and the server has it set to "true" permanently.
+# Our paper trader is already a simulator; we want Telegram alerts to fire
+# by default. Only opt into no-Telegram mode via PAPER_TRADER_SILENT=1 (for
+# local tests).
+DRY_RUN = os.getenv("PAPER_TRADER_SILENT", "").lower() in ("1", "true", "yes")
 
 STARTING_BANKROLL = 100.0
 POLL_INTERVAL_SEC = 30

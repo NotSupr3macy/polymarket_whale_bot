@@ -20,7 +20,7 @@ from pathlib import Path
 tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
 tmpfile.close()
 os.environ['DB_PATH'] = tmpfile.name
-os.environ['DRY_RUN'] = '1'
+os.environ['PAPER_TRADER_SILENT'] = '1'
 os.environ['PAPER_BOT_TOKEN'] = 'fake'
 os.environ['PAPER_BOT_CHAT_ID'] = '0'
 
