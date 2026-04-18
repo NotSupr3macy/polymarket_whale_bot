@@ -539,9 +539,12 @@ async def open_paper_position(
 
     base_pct = int(BASE_ALLOC[sig["alias"]] * 100)
     mult_str = f"{mult:.1f}x" if mult != 1.0 else "1.0x"
-    n_open = conn.execute(
-        "SELECT COUNT(*) FROM paper_positions WHERE outcome='OPEN'"
-    ).fetchone()[0]
+    open_stats = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(paper_size_usd), 0)"
+        " FROM paper_positions WHERE outcome='OPEN'"
+    ).fetchone()
+    n_open = int(open_stats[0])
+    deployed = float(open_stats[1])
     msg = (
         f"🧪 <b>NEW PAPER TRADE — {sig['alias']}</b>\n\n"
         f"<b>Market:</b> {sig['title']}\n"
@@ -550,8 +553,7 @@ async def open_paper_position(
         f"<b>Whale stake:</b> ${sig['whale_size_usd']:,.0f}\n"
         f"<b>Paper size:</b> ${size:.2f}  ({base_pct}% × {mult_str} conviction)\n"
         f"\n"
-        f"<b>Bankroll:</b> ${new_bankroll:.2f} / ${STARTING_BANKROLL:.2f}\n"
-        f"<b>Open positions:</b> {n_open}"
+        f"<b>Bankroll:</b> ${new_bankroll:.2f} | <b>In positions:</b> ${deployed:.2f} ({n_open} open)"
     )
     await send_telegram(msg)
     logger.info(
@@ -650,12 +652,21 @@ async def close_paper_position(
     state["bankroll_usd"] = new_bankroll
     conn.commit()
 
+    # Post-close snapshot of remaining open positions for the alert footer
+    open_stats = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(paper_size_usd), 0)"
+        " FROM paper_positions WHERE outcome='OPEN'"
+    ).fetchone()
+    n_open = int(open_stats[0])
+    deployed = float(open_stats[1])
+
     msg = (
         f"🧪{emoji} <b>PAPER {outcome} — {pp['whale_alias']}</b>\n\n"
         f"<b>Market:</b> {pp['market_title']}\n"
         f"<b>Side:</b> {pp['direction']} | <b>Entry:</b> ${entry:.3f} → ${resolution_price:.3f}\n"
         f"<b>Paper P&amp;L:</b> ${pnl:+.2f}\n"
-        f"<b>Bankroll:</b> ${new_bankroll:.2f} / ${STARTING_BANKROLL:.2f}"
+        f"\n"
+        f"<b>Bankroll:</b> ${new_bankroll:.2f} | <b>In positions:</b> ${deployed:.2f} ({n_open} open)"
     )
     await send_telegram(msg)
     logger.info(
@@ -723,9 +734,9 @@ async def send_6h_update(conn: sqlite3.Connection, state: dict) -> None:
     lines = [
         f"📊 <b>PAPER BOT UPDATE — {now_pst}</b>",
         "",
-        f"<b>Bankroll:</b> ${bankroll:.2f} / ${STARTING_BANKROLL:.2f}  ({pct_delta:+.1f}%)",
+        f"<b>Bankroll:</b> ${bankroll:.2f} ({pct_delta:+.1f}%) | "
+        f"<b>In positions:</b> ${deployed:.2f} ({n_open} open)",
         f"<b>Total:</b> {total_w}W/{total_l}L  ({total_wr:.1f}% WR)",
-        f"<b>Open:</b> {n_open} positions (${deployed:.2f} deployed)",
         "",
         "<b>By whale:</b>",
     ]
