@@ -37,9 +37,11 @@ THEONLYHUMAN_CONFIG = WhaleConfig(
     poll_interval_sec=15,
     dual_write_legacy_texaskid_table=False,
     send_daily_report=False,
-    # NBA-only solo alerts. In 30d, soccer cost -$85K (Liverpool) and
-    # "other" cost -$108K (Crystal Palace). NBA is the edge.
-    solo_alert_sports={"nba"},
+    # NBA + MLB solo alerts. Original filter was {"nba"} only but the
+    # counterfactual backtest (Apr 17) showed sport-only filter was leaving
+    # ~$116K on the table — his MLB book was also winning. Expand to
+    # {"nba", "mlb"}. Soccer/tennis/other still blocked.
+    solo_alert_sports={"nba", "mlb"},
     # Performance filter — derived from 7-day size × fav/dog analysis:
     #   Overall +8.4% ROI. Sweet spot is $15K-$50K (both sides positive:
     #   FAV +26% ROI, DOG +66% ROI). $50K+ DOG bucket is −44% ROI.

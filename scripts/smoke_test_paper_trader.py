@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Smoke test the paper trader end-to-end against a seeded temp DB.
+
+Covers:
+  1. init_db() creates tables + seeds paper_state with $100 bankroll
+  2. Candidate query finds unmuted open whale positions
+  3. Open path deducts bankroll + inserts paper_position
+  4. Resolution path updates bankroll + marks paper_position outcome
+  5. Consensus detection: 2nd-whale open gets conviction_mult=1.5
+  6. Tilt guard: post-LOSS open for same whale gets conviction_mult=0.5
+  7. nbasniper bypass: muted_reason='sport' still produces a paper open
+  8. deployment cap: can't exceed 50% of bankroll
+  9. restart: re-init against existing DB preserves state
+"""
+import os, sys, sqlite3, tempfile, asyncio
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+# Make paper_trader importable + set DRY_RUN BEFORE importing (Telegram calls no-op)
+tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+tmpfile.close()
+os.environ['DB_PATH'] = tmpfile.name
+os.environ['DRY_RUN'] = '1'
+os.environ['PAPER_BOT_TOKEN'] = 'fake'
+os.environ['PAPER_BOT_CHAT_ID'] = '0'
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'monitor'))
+import paper_trader as pt
+
+# ── Seed parent whale-tracker tables (simulate tracker output) ───────
+def seed_source_tables(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS tracked_whale_positions (
+            wallet TEXT NOT NULL, alias TEXT NOT NULL,
+            condition_id TEXT NOT NULL, direction TEXT NOT NULL,
+            market_title TEXT NOT NULL,
+            first_seen_price REAL, first_seen_size_usd REAL,
+            current_size_usd REAL, current_price REAL,
+            status TEXT NOT NULL DEFAULT 'open', outcome TEXT,
+            pnl REAL, first_seen_at TEXT NOT NULL,
+            last_updated TEXT, alert_sent INTEGER DEFAULT 0,
+            resolved_at TEXT, muted_reason TEXT,
+            PRIMARY KEY (wallet, condition_id)
+        );
+        CREATE TABLE IF NOT EXISTS texaskid_positions (
+            condition_id TEXT PRIMARY KEY, direction TEXT NOT NULL,
+            market_title TEXT NOT NULL,
+            first_seen_price REAL, first_seen_size_usd REAL,
+            current_size_usd REAL, current_price REAL,
+            status TEXT NOT NULL DEFAULT 'open', outcome TEXT,
+            pnl REAL, first_seen_at TEXT NOT NULL,
+            last_updated TEXT, alert_sent INTEGER DEFAULT 0,
+            resolved_at TEXT, muted_reason TEXT
+        );
+    """)
+    conn.commit(); conn.close()
+
+def insert_whale_position(db_path, alias, cid, direction, title,
+                          entry, size, first_seen_at, muted_reason=None,
+                          table='tracked_whale_positions'):
+    conn = sqlite3.connect(db_path)
+    if table == 'tracked_whale_positions':
+        conn.execute(
+            """INSERT OR REPLACE INTO tracked_whale_positions
+               (wallet, alias, condition_id, direction, market_title,
+                first_seen_price, first_seen_size_usd, current_size_usd,
+                current_price, status, first_seen_at, last_updated,
+                alert_sent, muted_reason)
+               VALUES (?,?,?,?,?,?,?,?,?,'open',?,?,1,?)""",
+            (f'0x{alias}', alias, cid, direction, title, entry, size, size,
+             entry, first_seen_at, first_seen_at, muted_reason),
+        )
+    else:
+        conn.execute(
+            """INSERT OR REPLACE INTO texaskid_positions
+               (condition_id, direction, market_title,
+                first_seen_price, first_seen_size_usd, current_size_usd,
+                current_price, status, first_seen_at, last_updated,
+                alert_sent, muted_reason)
+               VALUES (?,?,?,?,?,?,?,'open',?,?,1,?)""",
+            (cid, direction, title, entry, size, size, entry,
+             first_seen_at, first_seen_at, muted_reason),
+        )
+    conn.commit(); conn.close()
+
+def mark_resolved(db_path, alias, cid, outcome, table='tracked_whale_positions'):
+    conn = sqlite3.connect(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    if table == 'tracked_whale_positions':
+        conn.execute(
+            "UPDATE tracked_whale_positions SET status='closed', outcome=?, resolved_at=? WHERE alias=? AND condition_id=?",
+            (outcome, now, alias, cid),
+        )
+    else:
+        conn.execute(
+            "UPDATE texaskid_positions SET status='closed', outcome=?, resolved_at=? WHERE condition_id=?",
+            (outcome, now, cid),
+        )
+    conn.commit(); conn.close()
+
+# ── Tests ─────────────────────────────────────────────────────────────
+async def run_tests():
+    db = tmpfile.name
+    seed_source_tables(db)
+    pt.init_db(db)
+
+    # Test 1: init creates paper_state with $100 bankroll
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    state = pt.load_state(conn)
+    assert state['bankroll_usd'] == 100.0, f'Expected $100, got ${state["bankroll_usd"]}'
+    print('[OK] T1: paper_state seeded with $100 bankroll')
+
+    # Need to set started_at to 1 min ago so subsequent positions pass filter
+    past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    conn.execute('UPDATE paper_state SET started_at=? WHERE id=1', (past,))
+    conn.commit()
+
+    future_seen = datetime.now(timezone.utc).isoformat()
+
+    # Seed: TheOnlyHuman unmuted NBA position ($8 base)
+    insert_whale_position(db, 'TheOnlyHuman', '0xabc1', 'Lakers',
+                          'Lakers vs. Celtics', 0.55, 15000, future_seen)
+    # Seed: texaskid unmuted dog position
+    insert_whale_position(db, 'texaskid', '0xabc2', 'Rockies',
+                          'Rockies vs. Dodgers', 0.42, 20000, future_seen,
+                          table='texaskid_positions')
+    # Seed: nbasniper position with muted_reason='sport' (shadow mode)
+    insert_whale_position(db, 'nbasniper', '0xabc3', 'Mavs',
+                          'Mavs vs. Warriors', 0.48, 25000, future_seen,
+                          muted_reason='sport')
+    # Seed: bigsix MUTED (require_multi_trade) — should NOT create paper pos
+    insert_whale_position(db, 'bigsix', '0xabc4', 'Rangers',
+                          'Rangers vs. Kings', 0.60, 10000, future_seen,
+                          muted_reason='require_multi_trade')
+
+    # Test 2: candidate query returns the 3 unmuted/bypassed positions
+    cands = pt.query_candidates(conn, past)
+    aliases = sorted(c['alias'] for c in cands)
+    assert aliases == ['TheOnlyHuman', 'nbasniper', 'texaskid'], f'Expected 3, got {aliases}'
+    print(f'[OK] T2: candidate query returned {aliases} (bigsix muted — correctly excluded)')
+
+    # Test 3: run one tick → should open 3 paper positions
+    async def _one_tick():
+        # Inline version of the poll loop, just one pass
+        state_ = pt.load_state(conn)
+        # Resolutions first (none yet)
+        # Then signals
+        for sig in pt.query_candidates(conn, state_['started_at']):
+            base_frac = pt.BASE_ALLOC.get(sig['alias'])
+            if base_frac is None: continue
+            base_size = pt.STARTING_BANKROLL * base_frac
+            mult, desc = pt.compute_conviction_mult(
+                conn, sig['alias'], sig['cid'], sig['direction'],
+            )
+            size = min(base_size * mult, pt.HARD_SIZE_CAP_USD)
+            ok, _ = pt.can_open(conn, size, state_)
+            if ok:
+                await pt.open_paper_position(conn, sig, size, mult, state_)
+
+    await _one_tick()
+
+    n_open = conn.execute(
+        "SELECT COUNT(*) FROM paper_positions WHERE outcome='OPEN'"
+    ).fetchone()[0]
+    assert n_open == 3, f'Expected 3 open, got {n_open}'
+    print(f'[OK] T3: 3 paper positions opened')
+
+    # Check bankroll = 100 - (8 + 6 + 4) = 82
+    state_after = pt.load_state(conn)
+    expected_bankroll = 100.0 - (8.0 + 6.0 + 4.0)
+    assert abs(state_after['bankroll_usd'] - expected_bankroll) < 0.01, \
+        f'Expected bankroll ${expected_bankroll}, got ${state_after["bankroll_usd"]}'
+    print(f'[OK] T4: bankroll correctly deducted: ${state_after["bankroll_usd"]:.2f}')
+
+    # Test 5: Resolve TheOnlyHuman position as WIN → bankroll refills
+    mark_resolved(db, 'TheOnlyHuman', '0xabc1', 'WIN')
+    # Run resolution phase
+    async def _resolve_tick():
+        state_ = pt.load_state(conn)
+        open_rows = conn.execute(
+            "SELECT id, whale_alias, condition_id, direction, market_title,"
+            " entry_price, paper_size_usd, source_table FROM paper_positions"
+            " WHERE outcome='OPEN'"
+        ).fetchall()
+        for row in open_rows:
+            pp = dict(row)
+            src = pt.query_source_status(
+                conn, pp['source_table'], pp['whale_alias'], pp['condition_id'],
+            )
+            if src and src['status'] == 'closed' and src['outcome'] in ('WIN','LOSS'):
+                await pt.close_paper_position(conn, pp, src, state_)
+    await _resolve_tick()
+
+    # TheOnlyHuman WIN at entry 0.55: pnl = 8 * (1/0.55 - 1) = 8 * 0.8182 = +$6.55
+    # Bankroll gain: 8 (stake return) + 6.55 (pnl) = 14.55
+    state_after = pt.load_state(conn)
+    expected = (100.0 - 8 - 6 - 4) + 8.0 / 0.55  # stake back + payout at $1
+    assert abs(state_after['bankroll_usd'] - expected) < 0.01, \
+        f'Expected ${expected:.2f}, got ${state_after["bankroll_usd"]:.2f}'
+    print(f'[OK] T5: WIN resolution refilled bankroll to ${state_after["bankroll_usd"]:.2f} (expected ${expected:.2f})')
+
+    # Test 6: Resolve nbasniper as LOSS → no bankroll return
+    mark_resolved(db, 'nbasniper', '0xabc3', 'LOSS')
+    bankroll_before = state_after['bankroll_usd']
+    await _resolve_tick()
+    state_after = pt.load_state(conn)
+    # LOSS: bankroll += 0 (no stake return)
+    assert abs(state_after['bankroll_usd'] - bankroll_before) < 0.01, \
+        f'LOSS shouldn\'t change bankroll; before=${bankroll_before:.2f}, after=${state_after["bankroll_usd"]:.2f}'
+    print(f'[OK] T6: LOSS resolution consumed stake (bankroll unchanged: ${state_after["bankroll_usd"]:.2f})')
+
+    # Test 7: Consensus — seed two whales on SAME cid+direction → 2nd gets 1.5x
+    # Reset started_at to ensure new positions are in-window
+    conn.execute('UPDATE paper_state SET started_at=? WHERE id=1', (past,))
+    conn.commit()
+    # Clean slate for consensus test — delete old paper_positions
+    conn.execute("DELETE FROM paper_positions")
+    conn.execute("UPDATE paper_state SET bankroll_usd=100.0 WHERE id=1")
+    conn.commit()
+
+    future2 = datetime.now(timezone.utc).isoformat()
+    insert_whale_position(db, 'bigsix', '0xcon1', 'Jets',
+                          'Jets vs. Sharks', 0.45, 50000, future2)
+    insert_whale_position(db, 'kch123', '0xcon1', 'Jets',
+                          'Jets vs. Sharks', 0.45, 80000, future2)
+
+    await _one_tick()
+    # bigsix opens at 1.0x, kch123 opens at 1.5x (bigsix now counts as peer)
+    rows = conn.execute(
+        "SELECT whale_alias, conviction_mult FROM paper_positions"
+        " WHERE condition_id='0xcon1' ORDER BY opened_at"
+    ).fetchall()
+    assert len(rows) == 2, f'Expected 2 rows, got {len(rows)}'
+    assert rows[0][1] == 1.0, f'First whale mult should be 1.0, got {rows[0][1]}'
+    assert rows[1][1] == 1.5, f'Second whale mult should be 1.5 (consensus), got {rows[1][1]}'
+    print(f'[OK] T7: consensus detected — 2nd whale opened at 1.5x mult')
+
+    # Test 8: Tilt guard — seed a LOSS for kch123 in the last hour, then try to open
+    # Insert a historical resolved LOSS for kch123 (1h ago)
+    one_hr_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    conn.execute(
+        """INSERT INTO paper_positions
+           (whale_alias, condition_id, direction, market_title, entry_price,
+            paper_size_usd, bankroll_at_open, conviction_mult,
+            opened_at, resolved_at, outcome, resolution_price, paper_pnl,
+            source_table)
+           VALUES ('kch123','0xprior','X','tilt-test',0.5,5,100,1.0,?,?,'LOSS',0.0,-5,
+                   'tracked_whale_positions')""",
+        (one_hr_ago, one_hr_ago),
+    )
+    conn.commit()
+    mult, desc = pt.compute_conviction_mult(conn, 'kch123', '0xtilt1', 'X')
+    assert mult == 0.5, f'Expected 0.5 mult (tilt guard), got {mult}: {desc}'
+    print(f'[OK] T8: tilt guard applied after recent LOSS (mult=0.5)')
+
+    # Test 9: deployment cap ($50 max at 50% of $100 bankroll)
+    # Already open: bigsix $3 + kch123 $7.50 (5 * 1.5) = $10.50
+    # With $89.50 bankroll + $10.50 deployed = $100 equity, cap = $50
+    # Try to open $45 more — should fail (would exceed cap)
+    big_sig = {
+        'alias': 'TheOnlyHuman', 'cid': '0xbigtest', 'direction': 'X',
+        'title': 'big market', 'entry_price': 0.5, 'whale_size_usd': 50000,
+        'source_table': 'tracked_whale_positions', 'muted_reason': None,
+        'first_seen_at': future2,
+    }
+    state_ = pt.load_state(conn)
+    ok, reason = pt.can_open(conn, 45.0, state_)
+    assert not ok, f'Expected rejection at 45$, got ok={ok}'
+    print(f'[OK] T9: deploy cap enforced: "{reason}"')
+
+    # Test 10: idempotent init_db — rerun should not crash or change state
+    pt.init_db(db)
+    state_after = pt.load_state(conn)
+    # Bankroll should be unchanged
+    assert abs(state_after['bankroll_usd'] - state_['bankroll_usd']) < 0.01
+    print(f'[OK] T10: idempotent init_db — state preserved on re-init')
+
+    conn.close()
+    print('\n[ALL 10 TESTS PASSED]')
+
+asyncio.run(run_tests())
+
+# Cleanup
+os.unlink(tmpfile.name)
