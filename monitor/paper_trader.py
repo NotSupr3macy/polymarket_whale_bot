@@ -99,6 +99,7 @@ BASE_ALLOC = {
     "kch123": 0.05,                # $5
     "nbasniper": 0.04,             # $4 — shadow-to-live, no filter yet
     "GamblingIsAllYouNeed": 0.04,  # $4 — MLB-only, high activity
+    "sportmaster777": 0.03,        # $3 — promoted Apr 18 from shadow pool
     "bigsix": 0.03,                # $3
 }
 
@@ -109,6 +110,7 @@ WHALE_TABLE = {
     "bigsix": "tracked_whale_positions",
     "nbasniper": "tracked_whale_positions",
     "GamblingIsAllYouNeed": "tracked_whale_positions",
+    "sportmaster777": "tracked_whale_positions",
     "texaskid": "texaskid_positions",
 }
 

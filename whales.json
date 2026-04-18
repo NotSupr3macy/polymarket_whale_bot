@@ -1,71 +1,162 @@
 {
+  "0xc8075693f48668a264b9fa313b47f52712fcc12b": {
+    "alias": "texaskid",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.67,
+    "avg_bet": 27847,
+    "verified_stats": {
+      "real_wr": "67% (8W/4L, 12 resolved in 14d recency gate)",
+      "recency_pnl": 2000,
+      "shadow_pnl": 1182289,
+      "total_positions": 58,
+      "sports_pct": 1.0
+    },
+    "source": "Automated discovery pipeline \u00e2\u20ac\u201d shadow verified April 2026",
+    "notes": "TOP WHALE. Only whale with both passing recency gate AND historical track record. MLB + NBA specialist. Protected from auto-demotion.",
+    "added_at": "2026-04-09",
+    "added_by": "discovery_pipeline",
+    "promoted_at": "2026-04-09",
+    "promotion_reason": "manual_early \u00e2\u20ac\u201d 53 trades, 77.4% WR, $1.18M shadow PnL"
+  },
+  "0x507e52ef684ca2dd91f90a9d26d149dd3288beae": {
+    "alias": "GamblingIsAllYouNeed",
+    "tier": 2,
+    "protected": false,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.61,
+    "avg_bet": 10000,
+    "verified_stats": {
+      "real_wr": "61% (51W/33L, 84 resolved in 14d recency gate)",
+      "recency_pnl": 121000,
+      "recency_roi": 0.17,
+      "monthly_volume": 3484981,
+      "sports_pct": 0.998,
+      "leaderboard_rank": 12
+    },
+    "source": "Discovery pipeline \u00e2\u20ac\u201d whale scout April 2026. WR verified by recency gate (cashPnl method).",
+    "notes": "STRONGEST ACTIVE WHALE by volume. 61% on 84 bets with +$121K in 14 days. MLB specialist \u00e2\u20ac\u201d solo alerts fire for MLB only via gambling_tracker.py.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_from_shadow",
+    "promoted_at": "2026-04-13",
+    "promotion_reason": "61% verified WR on 84 recency bets, +$121K PnL, strongest recency gate pass"
+  },
+  "0xa71093cafc0c099b4ccab24c3cb8018d817923c4": {
+    "alias": "bigsix",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.55,
+    "avg_bet": 25000,
+    "verified_stats": {
+      "real_wr": "55% (57W/47L, 104 resolved in 30d Gamma-resolved)",
+      "recency_pnl": 150666,
+      "recency_roi": 0.053,
+      "nhl_record": "12W/10L 55% WR, +$117K, +15% ROI (30d)",
+      "mlb_record": "17W/14L 55% WR, -$106K, -14% ROI",
+      "nba_record": "20W/17L 54% WR, -$35K, -4% ROI",
+      "soccer_record": "3W/0L +$170K (Bayern-driven, small sample)"
+    },
+    "source": "Whale research 2026-04-11, re-verified 2026-04-13 via Gamma API (prior 14d cashPnl method was misleading)",
+    "notes": "NHL-only solo alerts. Prior 14d gate showed 19% WR / -$1.1M PnL which turned out to be a catastrophic window, not steady-state. 30d Gamma-resolved shows 55% overall WR, +$151K PnL, +5% ROI. NHL is his edge at +15% ROI. All non-NHL sports tracked silently for consensus only. Protected.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_research",
+    "promoted_at": "2026-04-11",
+    "stats_corrected_at": "2026-04-13",
+    "correction_reason": "14d cashPnl method materially underrepresented WR. 30d Gamma-resolved authoritative."
+  },
+  "0x6a72f61820b26b1fe4d956e17b6dc2a1ea3033ee": {
+    "alias": "kch123",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.52,
+    "avg_bet": 19800,
+    "verified_stats": {
+      "real_wr": "52% (42W/39L on NHL, 30d Gamma-resolved)",
+      "recency_pnl": 369091,
+      "recency_roi": 0.214,
+      "nhl_stake_30d": 1719776,
+      "nba_record": "0W/1L -$84K (one bad NBA bet \u00e2\u20ac\u201d NOT tailable)",
+      "all_time_pnl": 12064766,
+      "lifetime_months": 10,
+      "profile_views": 803700,
+      "total_predictions": 2460
+    },
+    "source": "Co-trader scan from texaskid markets, 2026-04-13. Discovered via find_texaskid_cotraders.py (8 market overlaps with texaskid). Verified via Polymarket profile + 30d Gamma-resolved scan.",
+    "notes": "ELITE NHL SPECIALIST. $12M lifetime PnL, 10 months on platform. 30d NHL: 42W/39L = 52% WR, +$369K, +21% ROI on $1.72M stake \u00e2\u20ac\u201d profitable via price selection, not high hit rate. NHL-only solo alerts (0/1 on NBA was a -$84K outlier). Protected. Sells = 0 in 30d (pure hold-to-resolution like texaskid).",
+    "added_at": "2026-04-13",
+    "added_by": "cotrader_discovery",
+    "promoted_at": "2026-04-13",
+    "promotion_reason": "52% NHL WR + 21% NHL ROI on $1.72M 30d stake, $12M lifetime PnL. Replaces bigsix as primary NHL signal; bigsix stays as secondary consensus."
+  },
+  "0x6ade597c0e2b43c0bf3542cada8a5e330d73f5b0": {
+    "alias": "TheOnlyHuman",
+    "tier": 1,
+    "protected": true,
+    "category": "sports",
+    "solo_enabled": true,
+    "win_rate": 0.62,
+    "avg_bet": 12000,
+    "verified_stats": {
+      "real_wr": "62% NBA (40W/25L, 30d Gamma-resolved)",
+      "recency_pnl_nba": 201031,
+      "recency_roi_nba": 0.29,
+      "nba_stake_30d": 694120,
+      "mlb_record": "5W/0L 100% WR, +$21K, +83% ROI (small sample)",
+      "soccer_loss": "-$85K (Liverpool) \u00e2\u20ac\u201d NOT tailable outside NBA",
+      "other_loss": "-$108K (Crystal Palace) \u00e2\u20ac\u201d NOT tailable outside NBA",
+      "all_time_pnl": 1020931,
+      "joined": "2025-10",
+      "biggest_win": 181800
+    },
+    "source": "Co-trader scan from texaskid markets, 2026-04-13. Discovered via find_texaskid_cotraders.py (4 market overlaps with texaskid). Verified via Polymarket profile + 30d Gamma-resolved scan.",
+    "notes": "ELITE NBA TOTALS SPECIALIST. $1M lifetime PnL. 30d NBA: 40W/25L = 62% WR, +$201K, +29% ROI on $694K stake \u00e2\u20ac\u201d bets NBA O/U (Pistons O/U, Heat O/U, Suns O/U, etc). NBA-only solo alerts; soccer/other cost -$193K in 30d. Pure hold (0 sells in 14d). Protected.",
+    "added_at": "2026-04-13",
+    "added_by": "cotrader_discovery",
+    "promoted_at": "2026-04-13",
+    "promotion_reason": "62% NBA WR + 29% NBA ROI, +$201K NBA PnL in 30d. Highest-conviction NBA signal in whale pool (beats texaskid's 8W/4L NBA sample)."
+  },
   "0x93abbc022ce98d6f45d4444b594791cc4b7a9723": {
     "alias": "gatorr",
     "tier": 3,
     "protected": false,
     "category": "sports",
     "solo_enabled": false,
-    "win_rate": 0.50,
+    "win_rate": 0.67,
     "avg_bet": 30000,
     "verified_stats": {
-      "real_wr": "50% (1W/1L, 2 resolved)",
-      "monthly_pnl": 1300000
+      "real_wr": "67% (4W/2L, 6 resolved in 14d recency gate)",
+      "recency_pnl": 18000,
+      "recency_roi": 0.42
     },
     "source": "ScanWhale verified + position audit April 2026",
-    "notes": "LOW DATA. Only 2 resolved positions. Consensus only. Re-evaluate after more data.",
+    "notes": "LOW DATA but positive trend. 67% on 6 bets, +$18K. Consensus only \u00e2\u20ac\u201d promote to solo after 15+ resolved bets if WR holds.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
-  "0x94f199fb7789f1aef7fff6b758d6b375100f4c7a": {
-    "alias": "KeyTransporter",
+  "0x492442eab586f242b53bda933fd5de859c8a3782": {
+    "alias": "nbasniper",
     "tier": 2,
     "protected": false,
     "category": "sports",
     "solo_enabled": false,
-    "win_rate": 0.68,
+    "win_rate": 0.5,
     "avg_bet": 30000,
     "verified_stats": {
-      "real_wr": "LOW DATA (0W/4L, 4 resolved — too few to judge)",
-      "monthly_pnl": 1900000
+      "real_wr": "50% (1W/1L, 2 resolved in 14d recency gate)",
+      "recency_pnl": -2000,
+      "historical_record": "9W/0L on earlier resolved positions"
     },
-    "source": "ScanWhale verified April 2026",
-    "notes": "LOW DATA but 0% on 4 resolved is concerning. Demoted to consensus-only. Watch closely.",
-    "added_at": "2026-04-06",
-    "added_by": "manual"
-  },
-  "0x9cb990f1862568a63d8601efeebe0304225c32f2": {
-    "alias": "jtwyslljy",
-    "tier": 2,
-    "protected": false,
-    "category": "esports",
-    "solo_enabled": true,
-    "win_rate": 0.67,
-    "avg_bet": 20000,
-    "verified_stats": {
-      "real_wr": "67% (2W/1L, 3 resolved)",
-      "monthly_pnl": 517807
-    },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA but 67% on 3 resolved is promising. Esports specialist.",
-    "added_at": "2026-03-11",
-    "added_by": "manual"
-  },
-  "0xc65ca4755436f82d8eb461e65781584b8cadea39": {
-    "alias": "UAEVALORANTFAN",
-    "tier": 2,
-    "protected": false,
-    "category": "esports",
-    "solo_enabled": true,
-    "win_rate": 0.64,
-    "avg_bet": 15000,
-    "verified_stats": {
-      "real_wr": "LOW DATA (0W/2L, 2 resolved)",
-      "monthly_pnl": 275681
-    },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA. Only 2 resolved. Esports specialist — off-hours coverage.",
-    "added_at": "2026-03-11",
-    "added_by": "manual"
+    "source": "Whale research 2026-04-11 \u00e2\u20ac\u201d pure NBA specialist",
+    "notes": "NBA specialist. Was 9W/0L historically but only 1W/1L in recency window. Consensus only \u00e2\u20ac\u201d promote to solo after 15+ resolved if WR >= 60%.",
+    "added_at": "2026-04-11",
+    "added_by": "manual_research"
   },
   "0xc2e7800b5af46e6093872b177b7a5e7f0563be51": {
     "alias": "beachboy4",
@@ -73,183 +164,72 @@
     "protected": false,
     "category": "sports",
     "solo_enabled": false,
-    "win_rate": 0.55,
+    "win_rate": 0.5,
     "avg_bet": 400000,
     "verified_stats": {
-      "real_wr": "LOW DATA (0W/1L, 1 resolved)",
-      "monthly_pnl": 402836
+      "real_wr": "50% (2W/2L, 4 resolved in 14d recency gate)",
+      "recency_pnl": -306000,
+      "recency_roi": -0.53
     },
     "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA. Only 1 resolved. Consensus only.",
+    "notes": "LOW DATA. 2W/2L but -$306K PnL (big losses outweigh wins). Consensus only. Remove if next recency gate shows continued losses.",
     "added_at": "2026-03-11",
     "added_by": "manual"
   },
-  "0xee613b3fc183ee44f9da9c05f53e2da107e3debf": {
-    "alias": "sovereign2013",
-    "tier": 2,
+  "0x36a3f17401e395ef4cb1b7f42bcdb8ab8e15fafb": {
+    "alias": "gfjoigfsjoigsjoi",
+    "tier": 3,
     "protected": false,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.53,
-    "avg_bet": 50000,
-    "verified_stats": {
-      "real_wr": "53% (89W/79L, 168 resolved)",
-      "weekly_volume": 8200000,
-      "weekly_pnl": 1450000
-    },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "BEST VERIFIED WHALE. 53% real WR on 168 resolved = statistically significant. Promoted to T2 solo-enabled.",
-    "added_at": "2026-03-31",
-    "added_by": "manual"
-  },
-  "0x50b1db131a24a9d9450bbd0372a95d32ea88f076": {
-    "alias": "blindStaking",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
+    "category": "multi",
     "solo_enabled": false,
-    "win_rate": 0.64,
-    "avg_bet": 25000,
+    "win_rate": 0.0,
+    "avg_bet": 30000,
     "verified_stats": {
-      "real_wr": "LOW DATA (0W/2L, 2 resolved)",
-      "weekly_pnl": 1126000
+      "real_wr": "0% (0W/2L, 2 resolved in 14d recency gate)",
+      "recency_pnl": -828000,
+      "monthly_volume": 3911881
     },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA. 0W/2L on 2 resolved is bad but too few to judge. Demoted to consensus-only.",
-    "added_at": "2026-04-06",
-    "added_by": "manual"
+    "source": "Auto-rotation from leaderboard, 2026-04-12",
+    "notes": "LOW DATA but -$828K on 2 bets is brutal. Consensus only. Remove if next recency gate confirms.",
+    "added_at": "2026-04-12",
+    "added_by": "auto_rotation"
   },
-  "0x2b3ff45c91540e46fae1e0c72f61f4b049453446": {
-    "alias": "Mentallyillgambld",
-    "tier": 2,
+  "0x6211f97a76ed5c4b1d658f637041ac5f293db89e": {
+    "alias": "Tiger200",
+    "tier": 3,
     "protected": false,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.66,
-    "avg_bet": 20000,
-    "verified_stats": {
-      "real_wr": "LOW DATA (0W/1L, 1 resolved)",
-      "weekly_pnl": 909000,
-      "roi": "175%"
-    },
-    "source": "Polymarket leaderboard + position audit April 2026",
-    "notes": "LOW DATA. Only 1 resolved. 175% ROI looks good but unverified.",
-    "added_at": "2026-04-06",
-    "added_by": "manual"
-  },
-  "0xc8075693f48668a264b9fa313b47f52712fcc12b": {
-    "alias": "texaskid",
-    "tier": 1,
-    "protected": true,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.77,
-    "avg_bet": 27847,
-    "verified_stats": {
-      "real_wr": "77.4% (41W/12L, 53 resolved in shadow)",
-      "shadow_pnl": 1182289,
-      "monthly_pnl": 219044,
-      "total_positions": 58,
-      "sports_pct": 1.0
-    },
-    "source": "Automated discovery pipeline → shadow verified April 2026",
-    "notes": "TOP WHALE. 77% shadow WR on 53 trades. MLB + NBA specialist. Promoted early due to overwhelming data. Protected from auto-demotion.",
-    "added_at": "2026-04-09",
-    "added_by": "discovery_pipeline",
-    "promoted_at": "2026-04-09",
-    "shadow_days": 1,
-    "promotion_reason": "manual_early — 53 trades, 77.4% WR, $1.18M shadow PnL"
-  },
-  "0x7ea571c40408f340c1c8fc8eaacebab53c1bde7b": {
-    "alias": "Cannae",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.875,
-    "avg_bet": 15000,
-    "verified_stats": {
-      "real_wr": "87.5% (733W/105L, 838 resolved)",
-      "monthly_pnl": 165377,
-      "monthly_volume": 1024597,
-      "sports_pct": 1.0,
-      "total_positions": 7813,
-      "leaderboard_rank": 10
-    },
-    "source": "Discovery pipeline → whale scout April 2026",
-    "notes": "MASSIVE SAMPLE. 838 resolved games at 87.5% WR is statistically bulletproof. 100% sports focus. Promoted directly to T2 solo on strength of verified position history.",
-    "added_at": "2026-04-11",
-    "added_by": "manual_from_shadow",
-    "promoted_at": "2026-04-11",
-    "promotion_reason": "838 resolved positions, 87.5% verified WR, 100% sports"
-  },
-  "0x204f72f35326db932158cba6adff0b9a1da95e14": {
-    "alias": "swisstony",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
-    "solo_enabled": true,
-    "win_rate": 0.797,
-    "avg_bet": 15000,
-    "verified_stats": {
-      "real_wr": "79.7% (1056W/269L, 1325 resolved)",
-      "monthly_pnl": 289548,
-      "monthly_volume": 4041011,
-      "sports_pct": 0.99,
-      "total_positions": 2383,
-      "leaderboard_rank": 3
-    },
-    "source": "Discovery pipeline → whale scout April 2026",
-    "notes": "HUGE SAMPLE. 1325 resolved games at 79.7% WR — strongest verified dataset in the pool. $289K monthly PnL, $4M monthly volume. Promoted to T2 solo.",
-    "added_at": "2026-04-11",
-    "added_by": "manual_from_shadow",
-    "promoted_at": "2026-04-11",
-    "promotion_reason": "1325 resolved positions, 79.7% verified WR, 99% sports"
-  },
-  "0x01c78f8873c0c86d6b6b92ff627e3802237ee995": {
-    "alias": "Lilybaeum",
-    "tier": 2,
-    "protected": false,
-    "category": "sports",
+    "category": "multi",
     "solo_enabled": false,
-    "win_rate": 0.713,
-    "avg_bet": 10000,
+    "win_rate": 0.0,
+    "avg_bet": 5882,
     "verified_stats": {
-      "real_wr": "71.3% (196W/79L, 275 resolved)",
-      "monthly_pnl": 69297,
-      "monthly_volume": 556213,
-      "sports_pct": 1.0,
-      "total_positions": 5574,
-      "leaderboard_rank": 33
+      "real_wr": "0% (0W/1L, 1 resolved in 14d recency gate)",
+      "recency_pnl": -12000,
+      "monthly_volume": 588234
     },
-    "source": "Discovery pipeline → whale scout April 2026",
-    "notes": "Decent sample (275 resolved) at 71.3% WR, 100% sports. Promoted to T2 consensus-only for now — upgrade to solo after a week of bot verification.",
-    "added_at": "2026-04-11",
-    "added_by": "manual_from_shadow",
-    "promoted_at": "2026-04-11",
-    "promotion_reason": "275 resolved positions, 71.3% verified WR, 100% sports"
+    "source": "Auto-rotation from leaderboard, 2026-04-12",
+    "notes": "LOW DATA. Only 1 resolved bet. Consensus only. Remove if next recency gate confirms losses.",
+    "added_at": "2026-04-12",
+    "added_by": "auto_rotation"
   },
-  "0x507e52ef684ca2dd91f90a9d26d149dd3288beae": {
-    "alias": "GamblingIsAllYouNeed",
+  "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960": {
+    "alias": "sportmaster777",
     "tier": 2,
     "protected": false,
     "category": "sports",
-    "solo_enabled": false,
-    "win_rate": 0.692,
-    "avg_bet": 10000,
+    "solo_enabled": true,
+    "win_rate": 0.533,
+    "avg_bet": 2500,
     "verified_stats": {
-      "real_wr": "69.2% (308W/137L, 445 resolved)",
-      "monthly_pnl": 151556,
-      "monthly_volume": 3484981,
-      "sports_pct": 0.998,
-      "total_positions": 901,
-      "leaderboard_rank": 12
+      "real_wr": "53.3% (349W/306L, 655 resolved over 6 days)",
+      "real_roi": "+9.2% on $627K stake, +$57,590 PnL",
+      "sport_breakdown": "MLB +27% ROI (best), NHL +8.8%, NBA -1.6% flat",
+      "size_sweet_spot": "$1.5K-$15K at +21% to +38% ROI",
+      "tail_risk": "$15K-$50K bucket: 1W/3L, -60% ROI"
     },
-    "source": "Discovery pipeline → whale scout April 2026",
-    "notes": "Solid sample (445 resolved) at 69.2% WR, effectively 100% sports. $3.5M monthly volume. Promoted to T2 consensus-only — upgrade to solo after bot verification.",
-    "added_at": "2026-04-11",
-    "added_by": "manual_from_shadow",
-    "promoted_at": "2026-04-11",
-    "promotion_reason": "445 resolved positions, 69.2% verified WR, 100% sports"
+    "source": "Promoted from shadow pool 2026-04-18 after forward analysis",
+    "notes": "Promoted to paper trader with size filter $500-$15K. All 3 sports OK, subtype agnostic. Base $3 paper allocation.",
+    "added_at": "2026-04-18",
+    "added_by": "promotion_review"
   }
 }
