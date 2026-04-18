@@ -86,12 +86,20 @@ HARD_SIZE_CAP_USD = 15.0  # from 3-way consensus
 MIN_POSITION_USD = 3.0  # below this, we won't open
 
 # Per-whale base allocation (fraction of bankroll) — confirmed by user
+#
+# Apr 18 update: added GamblingIsAllYouNeed at $4 base. Earlier excluded
+# per counterfactual which showed his MLB-only filter over-restricted him
+# (-88% ROI on 9 bets, tiny sample). Live tracking shows he's highly
+# active on MLB (16 passing-filter positions in 6h on Apr 18) with
+# 62.5% WR on 339 resolved shadow trades — break-even ROI but positive
+# signal worth copying.
 BASE_ALLOC = {
-    "TheOnlyHuman": 0.08,  # $8 on $100
-    "texaskid": 0.06,      # $6
-    "kch123": 0.05,        # $5
-    "nbasniper": 0.04,     # $4 — shadow-to-live, no filter yet
-    "bigsix": 0.03,        # $3
+    "TheOnlyHuman": 0.08,          # $8 on $100
+    "texaskid": 0.06,              # $6
+    "kch123": 0.05,                # $5
+    "nbasniper": 0.04,             # $4 — shadow-to-live, no filter yet
+    "GamblingIsAllYouNeed": 0.04,  # $4 — MLB-only, high activity
+    "bigsix": 0.03,                # $3
 }
 
 # Which table each whale writes to (texaskid = legacy separate table)
@@ -100,6 +108,7 @@ WHALE_TABLE = {
     "kch123": "tracked_whale_positions",
     "bigsix": "tracked_whale_positions",
     "nbasniper": "tracked_whale_positions",
+    "GamblingIsAllYouNeed": "tracked_whale_positions",
     "texaskid": "texaskid_positions",
 }
 
