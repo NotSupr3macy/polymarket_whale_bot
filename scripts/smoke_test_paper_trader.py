@@ -141,13 +141,17 @@ async def run_tests():
     assert aliases == ['TheOnlyHuman', 'nbasniper', 'texaskid'], f'Expected 3, got {aliases}'
     print(f'[OK] T2: candidate query returned {aliases} (bigsix muted — correctly excluded)')
 
-    # Test 3: run one tick → should open 3 paper positions
+    # Test 3: run one tick → texaskid now SHADOW (log-only), so only 2 opens
+    # (TheOnlyHuman + nbasniper). Mirrors production main loop's shadow-skip.
     async def _one_tick():
         # Inline version of the poll loop, just one pass
         state_ = pt.load_state(conn)
         # Resolutions first (none yet)
         # Then signals
         for sig in pt.query_candidates(conn, state_['started_at']):
+            if sig['alias'] in pt.SHADOW_WHALES:
+                pt.log_shadow_candidate(sig)
+                continue
             base_frac = pt.BASE_ALLOC.get(sig['alias'])
             if base_frac is None: continue
             base_size = pt.STARTING_BANKROLL * base_frac
@@ -155,7 +159,7 @@ async def run_tests():
                 conn, sig['alias'], sig['cid'], sig['direction'],
             )
             size = min(base_size * mult, pt.HARD_SIZE_CAP_USD)
-            ok, _ = pt.can_open(conn, size, state_)
+            ok, _ = pt.can_open(conn, size, state_, alias=sig['alias'])
             if ok:
                 await pt.open_paper_position(conn, sig, size, mult, state_)
 
@@ -164,15 +168,20 @@ async def run_tests():
     n_open = conn.execute(
         "SELECT COUNT(*) FROM paper_positions WHERE outcome='OPEN'"
     ).fetchone()[0]
-    assert n_open == 3, f'Expected 3 open, got {n_open}'
-    print(f'[OK] T3: 3 paper positions opened')
+    assert n_open == 2, f'Expected 2 open (texaskid shadow-muted), got {n_open}'
+    print(f'[OK] T3: 2 paper positions opened (texaskid shadow-skipped)')
 
-    # Check bankroll = 100 - (TheOnlyHuman $8 + texaskid $3 + nbasniper $4) = 85
+    # Check bankroll = 100 - (TheOnlyHuman $8 + nbasniper $4) = 88
     state_after = pt.load_state(conn)
-    expected_bankroll = 100.0 - (8.0 + 3.0 + 4.0)
+    expected_bankroll = 100.0 - (8.0 + 4.0)
     assert abs(state_after['bankroll_usd'] - expected_bankroll) < 0.01, \
         f'Expected bankroll ${expected_bankroll}, got ${state_after["bankroll_usd"]}'
     print(f'[OK] T4: bankroll correctly deducted: ${state_after["bankroll_usd"]:.2f}')
+
+    # T4.5: shadow-log fired for texaskid (logged_keys contains its cid)
+    assert ('texaskid', '0xabc2') in pt._shadow_logged_keys, \
+        f'Expected texaskid shadow-log; got {pt._shadow_logged_keys}'
+    print(f'[OK] T4.5: shadow log captured texaskid (log-only, no paper pos)')
 
     # Test 5: Resolve TheOnlyHuman position as WIN → bankroll refills
     mark_resolved(db, 'TheOnlyHuman', '0xabc1', 'WIN')
@@ -196,7 +205,7 @@ async def run_tests():
     # TheOnlyHuman WIN at entry 0.55: pnl = 8 * (1/0.55 - 1) = 8 * 0.8182 = +$6.55
     # Bankroll gain: 8 (stake return) + 6.55 (pnl) = 14.55
     state_after = pt.load_state(conn)
-    expected = (100.0 - 8 - 3 - 4) + 8.0 / 0.55  # stake back + payout at $1
+    expected = (100.0 - 8 - 4) + 8.0 / 0.55  # stake back + payout at $1
     assert abs(state_after['bankroll_usd'] - expected) < 0.01, \
         f'Expected ${expected:.2f}, got ${state_after["bankroll_usd"]:.2f}'
     print(f'[OK] T5: WIN resolution refilled bankroll to ${state_after["bankroll_usd"]:.2f} (expected ${expected:.2f})')
@@ -294,8 +303,89 @@ async def run_tests():
     assert abs(state_after['bankroll_usd'] - state_['bankroll_usd']) < 0.01
     print(f'[OK] T10: idempotent init_db — state preserved on re-init')
 
+    # Test 11: per-whale concurrent cap (GIAYN limited to 8 open)
+    # Clean slate, seed 8 GIAYN opens, assert 9th is rejected.
+    conn.execute("DELETE FROM paper_positions")
+    conn.execute("UPDATE paper_state SET bankroll_usd=100.0 WHERE id=1")
+    conn.commit()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for i in range(8):
+        conn.execute(
+            """INSERT INTO paper_positions
+               (whale_alias, condition_id, direction, market_title, entry_price,
+                paper_size_usd, bankroll_at_open, conviction_mult,
+                opened_at, outcome, source_table)
+               VALUES ('GamblingIsAllYouNeed', ?, 'X', 'cap-test',
+                       0.5, 4, 100, 1.0, ?, 'OPEN', 'tracked_whale_positions')""",
+            (f"0xcap{i}", now_iso),
+        )
+    conn.commit()
+    state_ = pt.load_state(conn)
+    ok_no_alias, _ = pt.can_open(conn, 4.0, state_)  # global cap not yet hit
+    assert ok_no_alias, "deploy cap shouldn't be an issue with $32 on $100"
+    ok_with_alias, reason = pt.can_open(
+        conn, 4.0, state_, alias='GamblingIsAllYouNeed',
+    )
+    assert not ok_with_alias, f"Expected per-whale cap rejection, got ok={ok_with_alias}"
+    assert 'per-whale cap' in reason, f"Expected 'per-whale cap' in reason: {reason}"
+    print(f'[OK] T11: per-whale cap enforced: "{reason}"')
+
+    # Test 12: cross-whale duplicate filter.
+    # Seed an existing paper_position on (cid, direction) that opened
+    # 45 min ago (OUTSIDE the 30-min consensus window). A new tracked_whale
+    # candidate for a DIFFERENT whale on the same (cid, direction) should be
+    # filtered out by query_candidates.
+    conn.execute("DELETE FROM paper_positions")
+    conn.commit()
+    forty_five_min_ago = (
+        datetime.now(timezone.utc) - timedelta(minutes=45)
+    ).isoformat()
+    conn.execute(
+        """INSERT INTO paper_positions
+           (whale_alias, condition_id, direction, market_title, entry_price,
+            paper_size_usd, bankroll_at_open, conviction_mult,
+            opened_at, outcome, source_table)
+           VALUES ('bigsix','0xdupe','Blues','dupe-test',0.5,3,100,1.0,?,
+                   'OPEN','tracked_whale_positions')""",
+        (forty_five_min_ago,),
+    )
+    conn.commit()
+    # Seed kch123 tracker row on the same (cid, direction)
+    insert_whale_position(
+        db, 'kch123', '0xdupe', 'Blues', 'dupe-test', 0.5, 1000, future2,
+    )
+    cands = pt.query_candidates(conn, past)
+    aliases_on_dupe = [c['alias'] for c in cands if c['cid'] == '0xdupe']
+    assert 'kch123' not in aliases_on_dupe, \
+        f"kch123 should be dupe-filtered, got {aliases_on_dupe}"
+    print(f'[OK] T12: cross-whale duplicate filter (>30min old) excludes kch123')
+
+    # Test 12.5: same scenario but existing open is WITHIN 30min —
+    # new whale IS allowed (consensus window).
+    conn.execute("DELETE FROM paper_positions")
+    conn.commit()
+    ten_min_ago = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    conn.execute(
+        """INSERT INTO paper_positions
+           (whale_alias, condition_id, direction, market_title, entry_price,
+            paper_size_usd, bankroll_at_open, conviction_mult,
+            opened_at, outcome, source_table)
+           VALUES ('bigsix','0xdupe2','Blues','dupe-test',0.5,3,100,1.0,?,
+                   'OPEN','tracked_whale_positions')""",
+        (ten_min_ago,),
+    )
+    conn.commit()
+    insert_whale_position(
+        db, 'kch123', '0xdupe2', 'Blues', 'dupe-test', 0.5, 1000, future2,
+    )
+    cands = pt.query_candidates(conn, past)
+    aliases_on_consensus = [c['alias'] for c in cands if c['cid'] == '0xdupe2']
+    assert 'kch123' in aliases_on_consensus, \
+        f"kch123 inside consensus window should pass, got {aliases_on_consensus}"
+    print(f'[OK] T12.5: consensus window (<30min) still allows 2nd whale')
+
     conn.close()
-    print('\n[ALL 10 TESTS PASSED]')
+    print('\n[ALL 13 TESTS PASSED]')
 
 asyncio.run(run_tests())
 

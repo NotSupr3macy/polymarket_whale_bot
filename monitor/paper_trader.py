@@ -92,23 +92,27 @@ MIN_POSITION_USD = 3.0  # below this, we won't open
 
 # Per-whale base allocation (fraction of bankroll) — confirmed by user
 #
-# Apr 18 rebalance — based on 20h of live paper-trader data:
-#   sportmaster 6W/1L  (85% WR, +62% ROI)   → $3 → $6  (Kelly underallocated)
-#   GIAYN       4W/1L  (80% WR, +48% ROI)   → $4 → $5
-#   texaskid    0W/4L  (0%  WR, −100% ROI)  → $6 → $3  (size down until data improves)
-#   bigsix      unchanged at $3
-#   Others unchanged pending more data.
-# Base total: $34 (was $33). Deployment cap bumped 0.50 → 0.60 to
-# accommodate larger concurrent fires after conviction multipliers.
+# Apr 19 update (after 24h live review):
+#   texaskid    1W/6L  (14% WR, −$25 over 24h)  → REMOVED; now SHADOW only
+#                      (see SHADOW_WHALES below — positions log-only, no open)
+#   sportmaster 13W/5L (72% WR, +$26)           — kept at $6 (top performer)
+#   Others as set in Apr 18 rebalance.
 BASE_ALLOC = {
     "TheOnlyHuman": 0.08,          # $8 — unchanged, limited live data
-    "texaskid": 0.03,              # $3 — was $6, trimmed after 0W/4L live
     "kch123": 0.05,                # $5 — unchanged, quiet whale
     "nbasniper": 0.04,             # $4 — shadow-to-live, no filter yet
-    "GamblingIsAllYouNeed": 0.05,  # $5 — was $4, bumped after 4W/1L live
-    "sportmaster777": 0.06,        # $6 — was $3, bumped after 6W/1L live
+    "GamblingIsAllYouNeed": 0.05,  # $5 — after 4W/1L live then 7W/5L over 24h
+    "sportmaster777": 0.06,        # $6 — crushing it, 72% WR across 18 bets
     "bigsix": 0.03,                # $3 — unchanged
 }
+
+# Whales muted from opening paper positions, but their candidate rows are
+# still logged at INFO level once per (alias, cid) so we keep collecting
+# performance data to decide re-inclusion. They are NOT in BASE_ALLOC.
+#
+# texaskid: 1W/6L over first 24h (14% WR, −$25 realized). Re-evaluate when
+# he shows 5 wins across any rolling 7-day window.
+SHADOW_WHALES = {"texaskid"}
 
 # Whales exempt from the post-loss tilt-guard multiplier (×0.5).
 # Rationale: tilt guard was designed for kch123 after his $430K
@@ -118,7 +122,30 @@ BASE_ALLOC = {
 # Halving their base size ($4 → $2) then collides with MIN_POSITION_USD=$3
 # and mutes them entirely for 4 hours after every loss — effectively
 # killing their signal for the rest of the day.
-TILT_GUARD_EXCLUDE = {"GamblingIsAllYouNeed"}
+#
+# Apr 19: added sportmaster777 after 24h data. He's 72% WR on 18 bets and
+# tilt-guard was systematically cutting his $6 base to $3 (because he'd taken
+# a single loss in the prior 4h). That's penalizing his PROVEN edge — the
+# opposite of what we want.
+TILT_GUARD_EXCLUDE = {"GamblingIsAllYouNeed", "sportmaster777"}
+
+# Per-whale concurrent-position cap. Defaults to unlimited. Applied in
+# can_open() to prevent one high-frequency whale from monopolizing the
+# global deploy-cap slot pool.
+#
+# GIAYN peaked at 13 simultaneous open positions on Apr 18, consuming $52
+# of the $58.47 deploy-cap budget — kch123's Flyers entry got skipped 20+
+# times over 10 min waiting for any slot. Cap GIAYN at 8 open to leave
+# runway for other whales.
+MAX_CONCURRENT_BY_WHALE = {"GamblingIsAllYouNeed": 8}
+
+# Skip any entry where the market's game_start_time is within this many
+# minutes away, OR the game has already started. Catches:
+#   - last-15-min pre-game fires (often hedges or line-chase)
+#   - in-game whale entries at extreme prices (e.g. sportmaster Rockets/Lakers
+#     Over 207.5 at $0.073 — mid-game scramble, lost $3)
+# Set to 0 to disable.
+MIN_MINUTES_TO_GAME_START = 15
 
 # Which table each whale writes to (texaskid = legacy separate table)
 WHALE_TABLE = {
@@ -317,14 +344,19 @@ def currently_deployed(conn: sqlite3.Connection) -> float:
 
 def can_open(
     conn: sqlite3.Connection, size: float, state: dict,
+    alias: Optional[str] = None,
 ) -> tuple[bool, str]:
-    """Return (ok, reason_if_not)."""
+    """Return (ok, reason_if_not).
+
+    If `alias` is supplied, also enforces MAX_CONCURRENT_BY_WHALE.
+    """
     if size < MIN_POSITION_USD:
         return False, f"size ${size:.2f} below min ${MIN_POSITION_USD}"
     if state["bankroll_usd"] < size:
         return False, f"bankroll ${state['bankroll_usd']:.2f} < size ${size:.2f}"
     deployed = currently_deployed(conn)
-    # Cap deployed to 50% of current equity (bankroll + already-deployed)
+    # Cap deployed to BANKROLL_DEPLOYMENT_CAP_FRAC of current equity
+    # (bankroll + already-deployed)
     equity = state["bankroll_usd"] + deployed
     cap = equity * BANKROLL_DEPLOYMENT_CAP_FRAC
     if deployed + size > cap:
@@ -332,7 +364,78 @@ def can_open(
             f"deploy cap ${cap:.2f} would be exceeded "
             f"(current ${deployed:.2f} + ${size:.2f})"
         )
+    if alias is not None:
+        per_whale_cap = MAX_CONCURRENT_BY_WHALE.get(alias)
+        if per_whale_cap is not None:
+            n_open_for_whale = conn.execute(
+                "SELECT COUNT(*) FROM paper_positions"
+                " WHERE whale_alias=? AND outcome='OPEN'",
+                (alias,),
+            ).fetchone()[0]
+            if n_open_for_whale >= per_whale_cap:
+                return False, (
+                    f"per-whale cap {per_whale_cap} reached "
+                    f"for {alias} ({n_open_for_whale} open)"
+                )
     return True, ""
+
+
+# ── Shadow whales — log-only candidates ────────────────────────────────
+# Tracks (alias, cid) we've already logged this session so we don't spam
+# INFO lines every 30s. Resets on process restart (re-logs once per restart
+# for any still-open shadow signal, which is acceptable).
+_shadow_logged_keys: set[tuple[str, str]] = set()
+
+
+def log_shadow_candidate(sig: dict) -> None:
+    """Log one INFO line per unique (alias, cid) shadow-whale candidate so
+    we can later assess whether that whale deserves re-promotion."""
+    key = (sig["alias"], sig["cid"])
+    if key in _shadow_logged_keys:
+        return
+    _shadow_logged_keys.add(key)
+    logger.info(
+        "SHADOW [%s] WOULD_OPEN: %s side=%s entry=$%.3f whale_size=$%.0f",
+        sig["alias"], sig["title"][:60], sig["direction"],
+        sig["entry_price"], sig["whale_size_usd"],
+    )
+
+
+# ── Game-start time lookup (cached via game_start_radar) ───────────────
+try:
+    from monitor.game_start_radar import fetch_game_start, parse_iso_utc
+except ImportError:
+    # Graceful fallback if import ordering breaks — disable the filter.
+    fetch_game_start = None  # type: ignore
+    parse_iso_utc = None  # type: ignore
+
+
+async def too_close_to_game_start(cid: str) -> tuple[bool, str]:
+    """Return (should_skip, reason).
+
+    Blocks when game_start_time is within MIN_MINUTES_TO_GAME_START minutes
+    from now, OR when the game has already started. If gameStartTime is
+    unknown (non-sports market, API down) we allow the open through.
+    """
+    if MIN_MINUTES_TO_GAME_START <= 0 or fetch_game_start is None:
+        return False, ""
+    try:
+        start_iso, _slug = await asyncio.to_thread(fetch_game_start, cid)
+    except Exception as e:
+        logger.debug("game_start lookup err for %s: %s", cid[:16], e)
+        return False, ""
+    if not start_iso or parse_iso_utc is None:
+        return False, ""
+    start_dt = parse_iso_utc(start_iso)
+    if start_dt is None:
+        return False, ""
+    mins_until = (start_dt - datetime.now(timezone.utc)).total_seconds() / 60.0
+    if mins_until < MIN_MINUTES_TO_GAME_START:
+        return True, (
+            f"game starts in {mins_until:+.1f} min "
+            f"(< {MIN_MINUTES_TO_GAME_START} min cutoff)"
+        )
+    return False, ""
 
 
 # ── Candidate query ────────────────────────────────────────────────────
@@ -350,6 +453,28 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
       - NOT already have an OPEN paper position with the same cid
     """
     rows = []
+    # Cross-whale duplicate filter: block a candidate if ANY other paper
+    # position is already OPEN on the same (cid, direction) and was opened
+    # MORE than 30 minutes ago. Inside the 30-min window we allow the open
+    # through so the consensus-multiplier (2-whale=1.5x, 3-whale=2.0x) can
+    # stack on the existing position. Outside it, a second fire is just
+    # duplicate exposure on the same thesis and we skip.
+    #
+    # NOTE: julianday() is used instead of string comparison because
+    # opened_at is stored as Python isoformat (`2026-04-18T08:45:00+00:00`)
+    # while SQLite's datetime('now','-30 minutes') returns a space-separated
+    # format — the two don't compare lexicographically due to the T vs space
+    # character mismatch at position 11. julianday() parses both.
+    DUPE_FILTER_SQL = """
+        AND NOT EXISTS (
+            SELECT 1 FROM paper_positions pp_dupe
+            WHERE pp_dupe.condition_id = {table}.condition_id
+              AND pp_dupe.direction = {table}.direction
+              AND pp_dupe.outcome = 'OPEN'
+              AND julianday(pp_dupe.opened_at)
+                  <= julianday('now', '-30 minutes')
+        )
+    """
     # ── tracked_whale_positions (bigsix, kch123, TheOnlyHuman, nbasniper) ──
     # Use alias match (case insensitive via LOWER) to keep SQL simple.
     # nbasniper bypass: include his rows even when muted_reason='sport'.
@@ -374,6 +499,7 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
                 AND pp.condition_id = tracked_whale_positions.condition_id
                 AND pp.outcome = 'OPEN'
           )
+          {DUPE_FILTER_SQL.format(table='tracked_whale_positions')}
         ORDER BY first_seen_at ASC
         """,
         (*tracked_aliases, started_at),
@@ -388,7 +514,7 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
 
     # ── texaskid_positions (legacy table, always alias='texaskid') ──
     cur = conn.execute(
-        """
+        f"""
         SELECT 'texaskid', condition_id, direction, market_title,
                first_seen_price, first_seen_size_usd, first_seen_at,
                muted_reason
@@ -402,6 +528,7 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
                 AND pp.condition_id = texaskid_positions.condition_id
                 AND pp.outcome = 'OPEN'
           )
+          {DUPE_FILTER_SQL.format(table='texaskid_positions')}
         ORDER BY first_seen_at ASC
         """,
         (started_at,),
@@ -800,15 +927,32 @@ async def run() -> None:
             # ── 2. NEW SIGNALS ─────────────────────────────────────────
             candidates = query_candidates(conn, state["started_at"])
             for sig in candidates:
+                # Shadow whales: log the would-be entry, skip the open.
+                if sig["alias"] in SHADOW_WHALES:
+                    log_shadow_candidate(sig)
+                    continue
+
                 base_frac = BASE_ALLOC.get(sig["alias"])
                 if base_frac is None:
                     continue
+
+                # Pre-sizing filter: skip if too close to game start /
+                # already in-game. Uses cached Gamma lookup (6h TTL) so
+                # repeat-checks on same cid are free.
+                skip_time, time_reason = await too_close_to_game_start(sig["cid"])
+                if skip_time:
+                    logger.info(
+                        "SKIP open [%s] %s: %s",
+                        sig["alias"], sig["title"][:40], time_reason,
+                    )
+                    continue
+
                 base_size = STARTING_BANKROLL * base_frac
                 mult, mult_desc = compute_conviction_mult(
                     conn, sig["alias"], sig["cid"], sig["direction"],
                 )
                 size = min(base_size * mult, HARD_SIZE_CAP_USD)
-                ok, reason = can_open(conn, size, state)
+                ok, reason = can_open(conn, size, state, alias=sig["alias"])
                 if not ok:
                     logger.info(
                         "SKIP open [%s] %s: %s (wanted $%.2f, mult %s)",
