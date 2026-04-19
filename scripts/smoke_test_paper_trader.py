@@ -148,7 +148,10 @@ async def run_tests():
     insert_whale_position(db, 'nbasniper', '0xabc3', 'Mavs',
                           'Mavs vs. Warriors', 0.48, 25000, future_seen,
                           muted_reason='sport')
-    # Seed: bigsix MUTED (require_multi_trade) — should NOT appear in candidates
+    # Seed: bigsix — muted with require_multi_trade BUT paper trader bypasses
+    # this mute (like nbasniper sport-bypass). Entry=$0.60 is a FAV on h2h-ml,
+    # so bigsix's whale_filter should still reject it. Net: appears in
+    # query_candidates, filtered out in main loop.
     insert_whale_position(db, 'bigsix', '0xabc4', 'Rangers',
                           'Rangers vs. Kings', 0.60, 10000, future_seen,
                           muted_reason='require_multi_trade')
@@ -157,18 +160,22 @@ async def run_tests():
     insert_whale_position(db, 'TheOnlyHuman', '0xabc5', 'Knicks',
                           'Knicks vs. Heat', 0.50, 18000, future_seen)
 
-    # Test 2: candidate query returns all 4 unmuted/bypassed positions
-    # (bigsix filtered out by muted_reason='require_multi_trade').
+    # Test 2: candidate query returns all 5 unmuted/bypassed positions.
+    # bigsix's require_multi_trade mute is now bypassed (like nbasniper),
+    # so he appears here — but his whale_filter will reject him in T3.
     cands = pt.query_candidates(conn, past)
     aliases = sorted(c['alias'] for c in cands)
-    assert aliases == ['TheOnlyHuman', 'kch123', 'nbasniper', 'texaskid'], \
-        f'Expected 4, got {aliases}'
-    print(f'[OK] T2: candidate query returned {aliases} (bigsix muted — correctly excluded)')
+    assert aliases == ['TheOnlyHuman', 'bigsix', 'kch123', 'nbasniper',
+                       'texaskid'], f'Expected 5, got {aliases}'
+    print(f'[OK] T2: candidate query returned {aliases} '
+          f'(bigsix require_multi_trade bypassed, texaskid/TheOnlyHuman shadow)')
 
-    # Test 3: run one tick → kch123 + nbasniper open, texaskid + TheOnlyHuman
-    # shadow-skip. Mirrors production main loop's shadow-skip.
+    # Test 3: run one tick → kch123 + nbasniper open; texaskid + TheOnlyHuman
+    # shadow-skip; bigsix whale-filter rejects (fav@$0.60 on h2h-ml).
     async def _one_tick():
-        # Inline version of the poll loop, just one pass
+        # Inline version of the poll loop, just one pass.
+        # Mirrors production main loop ordering:
+        #   shadow-skip → base_alloc check → whale filter → open
         state_ = pt.load_state(conn)
         # Resolutions first (none yet)
         # Then signals
@@ -178,6 +185,9 @@ async def run_tests():
                 continue
             base_frac = pt.BASE_ALLOC.get(sig['alias'])
             if base_frac is None: continue
+            whale_filter = pt.WHALE_FILTERS.get(sig['alias'])
+            if whale_filter and not whale_filter(sig):
+                continue  # per-whale edge filter rejected
             base_size = pt.STARTING_BANKROLL * base_frac
             mult, desc = pt.compute_conviction_mult(
                 conn, sig['alias'], sig['cid'], sig['direction'],
@@ -193,9 +203,9 @@ async def run_tests():
         "SELECT COUNT(*) FROM paper_positions WHERE outcome='OPEN'"
     ).fetchone()[0]
     assert n_open == 2, \
-        f'Expected 2 open (texaskid + TheOnlyHuman shadow-muted), got {n_open}'
+        f'Expected 2 open (texaskid/TOH shadow, bigsix filtered), got {n_open}'
     print(f'[OK] T3: 2 paper positions opened '
-          f'(texaskid + TheOnlyHuman shadow-skipped)')
+          f'(texaskid + TheOnlyHuman shadow-skipped, bigsix filter-rejected)')
 
     # Check bankroll = 100 - (kch123 $5 + nbasniper $4) = 91
     state_after = pt.load_state(conn)
@@ -468,8 +478,46 @@ async def run_tests():
     print(f'[OK] T13: Gamma-None correctly yields RESOLVED break-even '
           f'(tracker WIN ignored, prevents phantom-WIN bug)')
 
+    # Test 14: bigsix whale-filter — accept dogs + spreads, reject
+    # favorites-on-non-spread and totals.
+    bigsix_cases = [
+        # (title, entry_price, expected_accept, description)
+        ('Knicks vs. Heat', 0.40, True, 'dog ML — accept'),
+        ('Knicks vs. Heat', 0.60, False, 'fav ML — reject'),
+        ('Spread: Knicks (-5.5)', 0.65, True, 'spread (any price) — accept'),
+        ('Spread: Knicks (-5.5)', 0.30, True, 'dog spread — accept'),
+        ('Knicks vs. Heat: O/U 215.5', 0.48, False, 'totals — always reject'),
+        ('Knicks vs. Heat: O/U 215.5', 0.30, False, 'totals even at dog price — reject'),
+    ]
+    for title, entry, expected, desc in bigsix_cases:
+        sig = {'alias': 'bigsix', 'title': title, 'entry_price': entry}
+        actual = pt.WHALE_FILTERS['bigsix'](sig)
+        assert actual == expected, (
+            f'bigsix filter case [{desc}] expected {expected}, got {actual} '
+            f'(title={title}, entry={entry}, subtype={pt.classify_subtype(title)})'
+        )
+    print(f'[OK] T14: bigsix whale filter correctly routes '
+          f'(dogs+spreads accept, favs/totals reject)')
+
+    # Test 15: bigsix mute-bypass — query_candidates should return his row
+    # even when muted_reason='require_multi_trade'.
+    conn.execute("DELETE FROM paper_positions")
+    conn.commit()
+    past2 = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    future3 = datetime.now(timezone.utc).isoformat()
+    # Clear previous bigsix seed and re-seed with require_multi_trade mute
+    insert_whale_position(
+        db, 'bigsix', '0xbigsix_test', 'Underdogs', 'Dog ML @ bigsix',
+        0.40, 15000, future3, muted_reason='require_multi_trade',
+    )
+    cands = pt.query_candidates(conn, past2)
+    bigsix_candidates = [c for c in cands if c['alias'] == 'bigsix']
+    assert any(c['cid'] == '0xbigsix_test' for c in bigsix_candidates), \
+        f"bigsix mute-bypass failed: {bigsix_candidates}"
+    print(f'[OK] T15: bigsix require_multi_trade mute bypassed in paper trader')
+
     conn.close()
-    print('\n[ALL 14 TESTS PASSED]')
+    print('\n[ALL 16 TESTS PASSED]')
 
 asyncio.run(run_tests())
 

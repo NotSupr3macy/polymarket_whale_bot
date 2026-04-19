@@ -36,11 +36,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import aiohttp
 
@@ -141,7 +142,9 @@ TILT_GUARD_EXCLUDE = {"GamblingIsAllYouNeed", "sportmaster777"}
 # of the $58.47 deploy-cap budget — kch123's Flyers entry got skipped 20+
 # times over 10 min waiting for any slot. Cap GIAYN at 8 open to leave
 # runway for other whales.
-MAX_CONCURRENT_BY_WHALE = {"GamblingIsAllYouNeed": 8}
+# bigsix fires ~10.5 resolved bets/day per fingerprint. Cap at 5 to stay
+# within his dog/spread edge zone without flooding concurrency budget.
+MAX_CONCURRENT_BY_WHALE = {"GamblingIsAllYouNeed": 8, "bigsix": 5}
 
 # Skip any entry where the market's game_start_time is within this many
 # minutes away, OR the game has already started. Catches:
@@ -150,6 +153,63 @@ MAX_CONCURRENT_BY_WHALE = {"GamblingIsAllYouNeed": 8}
 #     Over 207.5 at $0.073 — mid-game scramble, lost $3)
 # Set to 0 to disable.
 MIN_MINUTES_TO_GAME_START = 15
+
+
+# ── Subtype classifier (used by WHALE_FILTERS) ─────────────────────────
+def classify_subtype(title: str) -> str:
+    """Classify a market title into a subtype so per-whale filters can
+    gate on market shape. Logic ported from scripts/fingerprint_whale.py
+    so the classification used for historical analysis matches the
+    filter used for live decisions.
+    """
+    t = (title or "").lower()
+    if "end in a draw" in t:
+        return "draw"
+    if "o/u" in t or "over/under" in t:
+        return "totals"
+    if "spread" in t:
+        return "spread"
+    if re.search(r"\b(period|map|quarter|inning|set|game \d)\b", t):
+        return "segment"
+    if "winner" in t and (
+        "quarterfinal" in t or "semifinal" in t or "final" in t
+    ):
+        return "futures"
+    if "win on 20" in t:
+        return "daily-ml"
+    if " vs " in t or " vs. " in t:
+        return "h2h-ml"
+    if "win the" in t and (
+        "cup" in t or "champion" in t or "division" in t or "conference" in t
+    ):
+        return "futures"
+    return "other"
+
+
+# ── Per-whale edge filters ─────────────────────────────────────────────
+# Each function takes a candidate signal dict and returns True to accept
+# or False to reject. Rejected candidates are logged and skipped.
+# Whales without an entry here are unrestricted.
+def _bigsix_accept(sig: dict) -> bool:
+    """bigsix's empirical edge (fingerprint Apr 19, 91 resolved bets):
+        dogs (entry < $0.50):   62% WR  +34% ROI  <- PRINT
+        favs (entry ≥ $0.50):   46% WR  -10% ROI  <- LEAK
+        spreads (any price):    70% WR  +$63K     <- PRINT
+        totals (O/U):           49% WR  -$61K     <- LEAK
+    Accept iff (dog) OR (spread). Skip favs-on-non-spread and all totals.
+    """
+    subtype = classify_subtype(sig.get("title", ""))
+    if subtype == "spread":
+        return True
+    if subtype == "totals":
+        return False  # his O/U leak
+    entry = float(sig.get("entry_price", 0.5) or 0.5)
+    return entry < 0.50  # dogs win; favs skip
+
+
+WHALE_FILTERS: dict[str, Callable[[dict], bool]] = {
+    "bigsix": _bigsix_accept,
+}
 
 # Which table each whale writes to (texaskid = legacy separate table)
 WHALE_TABLE = {
@@ -496,6 +556,7 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
           AND (
               muted_reason IS NULL
               OR (alias = 'nbasniper' AND muted_reason = 'sport')
+              OR (alias = 'bigsix' AND muted_reason = 'require_multi_trade')
           )
           AND NOT EXISTS (
               SELECT 1 FROM paper_positions pp
@@ -984,6 +1045,19 @@ async def run() -> None:
 
                 base_frac = BASE_ALLOC.get(sig["alias"])
                 if base_frac is None:
+                    continue
+
+                # Per-whale edge filter (e.g. bigsix dogs+spreads only).
+                # Runs before the Gamma/game-start check so we don't burn
+                # API calls on signals we'll reject anyway.
+                whale_filter = WHALE_FILTERS.get(sig["alias"])
+                if whale_filter and not whale_filter(sig):
+                    logger.info(
+                        "SKIP open [%s] whale-filter reject: %s @ $%.3f "
+                        "(subtype=%s)",
+                        sig["alias"], sig["title"][:50], sig["entry_price"],
+                        classify_subtype(sig["title"]),
+                    )
                     continue
 
                 # Pre-sizing filter: skip if too close to game start /
