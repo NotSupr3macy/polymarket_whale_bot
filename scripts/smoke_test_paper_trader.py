@@ -27,6 +27,24 @@ os.environ['PAPER_BOT_CHAT_ID'] = '0'
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'monitor'))
 import paper_trader as pt
 
+# ── Mock Gamma so synthetic cids in the smoke test resolve deterministically.
+# The test seeds fake tracker rows (cid='0xabc1', etc.) that don't exist in
+# real Gamma. Real Gamma would return None for every one, which under the
+# Apr 19 safety change would mark every close as RESOLVED break-even and
+# break T5/T6. The mock mirrors the real Gamma by reading our synthetic
+# tracker row's outcome field and translating it into Gamma's response shape.
+_MOCK_GAMMA_OUTCOMES: dict[tuple[str, str], tuple[str, float]] = {}
+
+def mock_set_gamma_outcome(cid: str, direction: str, outcome: str, price: float):
+    _MOCK_GAMMA_OUTCOMES[(cid, direction)] = (outcome, price)
+
+async def _mock_gamma(cid: str, direction: str):
+    # If test explicitly set an outcome, return it. Otherwise fall through
+    # to None (simulating Gamma unreachable) so we can test that path too.
+    return _MOCK_GAMMA_OUTCOMES.get((cid, direction))
+
+pt.resolve_ambiguous_via_gamma = _mock_gamma
+
 # ── Seed parent whale-tracker tables (simulate tracker output) ───────
 def seed_source_tables(db_path):
     conn = sqlite3.connect(db_path)
@@ -185,6 +203,7 @@ async def run_tests():
 
     # Test 5: Resolve TheOnlyHuman position as WIN → bankroll refills
     mark_resolved(db, 'TheOnlyHuman', '0xabc1', 'WIN')
+    mock_set_gamma_outcome('0xabc1', 'Lakers', 'WIN', 1.0)
     # Run resolution phase
     async def _resolve_tick():
         state_ = pt.load_state(conn)
@@ -212,6 +231,7 @@ async def run_tests():
 
     # Test 6: Resolve nbasniper as LOSS → no bankroll return
     mark_resolved(db, 'nbasniper', '0xabc3', 'LOSS')
+    mock_set_gamma_outcome('0xabc3', 'Mavs', 'LOSS', 0.0)
     bankroll_before = state_after['bankroll_usd']
     await _resolve_tick()
     state_after = pt.load_state(conn)
@@ -384,8 +404,62 @@ async def run_tests():
         f"kch123 inside consensus window should pass, got {aliases_on_consensus}"
     print(f'[OK] T12.5: consensus window (<30min) still allows 2nd whale')
 
+    # Test 13: Gamma-None safety — when Gamma lookup returns None, we
+    # MUST mark the position as RESOLVED (break-even), NOT trust the
+    # tracker's outcome. This prevents the phantom-WIN/phantom-LOSS bug
+    # from Apr 19 (sportmaster Padres marked LOSS when Padres actually won).
+    conn.execute("DELETE FROM paper_positions")
+    conn.execute("UPDATE paper_state SET bankroll_usd=100.0 WHERE id=1")
+    conn.commit()
+    # Seed an open paper position for kch123 that whale_tracker says WIN but
+    # Gamma can't confirm (no mock set for this cid).
+    now_iso_t13 = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """INSERT INTO paper_positions
+           (whale_alias, condition_id, direction, market_title, entry_price,
+            paper_size_usd, bankroll_at_open, conviction_mult,
+            opened_at, outcome, source_table)
+           VALUES ('kch123','0xgamma_blip','X','gamma-blip-test',
+                   0.5, 5, 100, 1.0, ?, 'OPEN', 'tracked_whale_positions')""",
+        (now_iso_t13,),
+    )
+    # Deduct bankroll to match an open position
+    conn.execute("UPDATE paper_state SET bankroll_usd=95.0 WHERE id=1")
+    conn.commit()
+    # Tracker-side says WIN (which would be a phantom since Gamma can't verify)
+    insert_whale_position(
+        db, 'kch123', '0xgamma_blip', 'X', 'gamma-blip-test',
+        0.5, 10000, now_iso_t13,
+    )
+    mark_resolved(db, 'kch123', '0xgamma_blip', 'WIN')
+    # DO NOT set Gamma mock → _mock_gamma returns None → simulates
+    # Gamma unreachable / all retries exhausted in production.
+    state_ = pt.load_state(conn)
+    pp_row = conn.execute(
+        "SELECT id, whale_alias, condition_id, direction, market_title,"
+        " entry_price, paper_size_usd, source_table FROM paper_positions"
+        " WHERE condition_id='0xgamma_blip' AND outcome='OPEN'"
+    ).fetchone()
+    src = pt.query_source_status(
+        conn, 'tracked_whale_positions', 'kch123', '0xgamma_blip',
+    )
+    await pt.close_paper_position(conn, dict(pp_row), src, state_)
+    result = conn.execute(
+        "SELECT outcome, paper_pnl FROM paper_positions WHERE id=?",
+        (pp_row['id'],),
+    ).fetchone()
+    assert result[0] == 'RESOLVED', \
+        f"Gamma-None should yield RESOLVED, got {result[0]} (phantom-WIN bug regressed!)"
+    assert abs(result[1]) < 0.01, \
+        f"RESOLVED pnl should be 0, got ${result[1]} (phantom-WIN bug regressed!)"
+    state_after = pt.load_state(conn)
+    assert abs(state_after['bankroll_usd'] - 100.0) < 0.01, \
+        f"RESOLVED should refund stake to 100, got ${state_after['bankroll_usd']}"
+    print(f'[OK] T13: Gamma-None correctly yields RESOLVED break-even '
+          f'(tracker WIN ignored, prevents phantom-WIN bug)')
+
     conn.close()
-    print('\n[ALL 13 TESTS PASSED]')
+    print('\n[ALL 14 TESTS PASSED]')
 
 asyncio.run(run_tests())
 

@@ -572,72 +572,100 @@ def query_source_status(
 async def resolve_ambiguous_via_gamma(
     cid: str, direction: str,
 ) -> Optional[tuple[str, float]]:
-    """Last-resort lookup for paper positions whose source whale flipped
-    to status='closed' with outcome='RESOLVED' (i.e. the whale's position
-    DISAPPEARED from Polymarket /positions before our tracker caught its
-    price hitting the rails — common for high-frequency whales who redeem
-    or sell out quickly).
+    """Authoritative resolution lookup for a paper position at close time.
 
     Queries Polymarket Gamma directly for the market's final outcomePrices
-    to determine whether the paper position actually won or lost.
+    to determine whether the paper direction actually won or lost. Retries
+    on transient failures (network blips, rate limiting) before giving up,
+    because a spurious None can cause close_paper_position to fall back to
+    a possibly-wrong tracker outcome — see the dual-side tracker bug notes
+    in close_paper_position.
 
     Returns:
-        ('WIN', 1.0)   — paper direction is the winning side
-        ('LOSS', 0.0)  — paper direction is the losing side
-        None           — couldn't determine (Gamma unavailable, market still
-                         live, or direction not found in outcomes array).
-                         Caller should fall back to $0 break-even behavior.
+        ('WIN', 1.0)   — direction is the winning side (price >= 0.99)
+        ('LOSS', 0.0)  — direction is the losing side  (price <= 0.01)
+        ('LIVE', wp)   — market NOT at rails yet (genuine ambiguity)
+        None           — Gamma unreachable after all retries, or direction
+                         string doesn't match any outcome name in the market.
+                         CALLER MUST NOT trust the whale-tracker's outcome
+                         when this returns None — mark position as RESOLVED
+                         (break-even) instead, so repair_paper_resolutions.py
+                         can fix it when Gamma is healthy again.
     """
+    # 2 param variants × 3 attempts = up to 6 Gamma calls before None.
+    # Sleeps (0s, 1s, 3s) for exponential-ish backoff on rate limits.
+    backoffs = [0, 1, 3]
+    last_err: Optional[str] = None
     for params in [
         {"condition_ids": cid, "closed": "true"},
         {"condition_ids": cid},
     ]:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://gamma-api.polymarket.com/markets",
-                    params=params,
-                    headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as r:
-                    if r.status != 200:
-                        continue
-                    data = await r.json()
-        except Exception as e:
-            logger.debug("Gamma lookup err for %s: %s", cid[:16], e)
-            continue
+        for attempt, delay in enumerate(backoffs):
+            if delay:
+                await asyncio.sleep(delay)
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        "https://gamma-api.polymarket.com/markets",
+                        params=params,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as r:
+                        if r.status == 429:
+                            last_err = f"HTTP 429 (rate limit) attempt {attempt + 1}"
+                            continue  # retry with next backoff
+                        if r.status != 200:
+                            last_err = f"HTTP {r.status} attempt {attempt + 1}"
+                            break  # try next param variant
+                        data = await r.json()
+            except Exception as e:
+                last_err = f"{type(e).__name__}: {e} attempt {attempt + 1}"
+                continue  # retry with next backoff
 
-        if not data:
-            continue
-        m = data[0]
-        try:
-            op = m.get("outcomePrices", "[]")
-            op = json.loads(op) if isinstance(op, str) else op
-            oc = m.get("outcomes", "[]")
-            oc = json.loads(oc) if isinstance(oc, str) else oc
-        except Exception:
-            continue
+            if not data:
+                last_err = "empty Gamma response"
+                break  # try next param variant
 
-        # Match direction → outcome index (case-insensitive strip compare)
-        idx = next(
-            (i for i, x in enumerate(oc)
-             if str(x).strip().lower() == direction.strip().lower()),
-            None,
+            m = data[0]
+            try:
+                op = m.get("outcomePrices", "[]")
+                op = json.loads(op) if isinstance(op, str) else op
+                oc = m.get("outcomes", "[]")
+                oc = json.loads(oc) if isinstance(oc, str) else oc
+            except Exception:
+                last_err = "could not parse outcomes JSON"
+                break
+
+            # Match direction → outcome index (case-insensitive strip compare)
+            idx = next(
+                (i for i, x in enumerate(oc)
+                 if str(x).strip().lower() == direction.strip().lower()),
+                None,
+            )
+            if idx is None or idx >= len(op):
+                last_err = (
+                    f"direction '{direction}' not in outcomes "
+                    f"{[str(x) for x in oc]}"
+                )
+                return None  # structural mismatch — no amount of retry helps
+            try:
+                wp = float(op[idx])
+            except (TypeError, ValueError):
+                last_err = "outcome price not numeric"
+                break
+
+            if wp >= 0.99:
+                return ("WIN", 1.0)
+            if wp <= 0.01:
+                return ("LOSS", 0.0)
+            # Market not at rails — genuinely still live.
+            return ("LIVE", wp)
+
+    if last_err:
+        logger.warning(
+            "Gamma lookup exhausted retries for %s side=%s: %s",
+            cid[:16], direction, last_err,
         )
-        if idx is None or idx >= len(op):
-            continue
-        try:
-            wp = float(op[idx])
-        except (TypeError, ValueError):
-            continue
-
-        if wp >= 0.99:
-            return ("WIN", 1.0)
-        if wp <= 0.01:
-            return ("LOSS", 0.0)
-        # Market not actually at rails — genuine ambiguity, keep as break-even.
-        return None
-
     return None
 
 
@@ -709,51 +737,69 @@ async def close_paper_position(
     entry = pp["entry_price"]
     size = pp["paper_size_usd"]
 
-    # CRITICAL: always verify the outcome via Gamma API using THIS PAPER
-    # POSITION'S direction — don't trust the whale_tracker's outcome field.
+    # CRITICAL: resolution is Gamma-authoritative. We NEVER trust the
+    # whale_tracker's outcome field at close time.
     #
     # Why: whale_tracker only tracks ONE side per (wallet, cid). If a whale
-    # holds BOTH sides of a market (e.g. original bet on Timberwolves, then
-    # bought Nuggets when Timberwolves was losing), the tracker may pick the
-    # winning side's price at resolution → wrongly mark outcome='WIN' even
-    # though our paper position was on the losing side.
+    # holds BOTH sides of a market (hedging / size-up on losing side), the
+    # tracker may report the WINNING side's price as its outcome — wrongly
+    # marking 'WIN' even when OUR paper position is on the losing side (or
+    # vice versa).
     #
-    # Confirmed bug on Apr 18: sportmaster777 Timberwolves ML @ $0.324 was
-    # marked WIN +$6.25 by paper_trader trusting tracker, but Gamma showed
-    # Timberwolves=$0.000 (losing side). paper was actually LOSS −$3.
+    # Confirmed instances:
+    #   Apr 18: sportmaster777 Timberwolves ML @ $0.324 marked WIN +$6.25
+    #           by tracker; Gamma showed Timberwolves=$0.000 (it lost).
+    #   Apr 19: sportmaster777 Padres ML @ $0.4413 marked LOSS −$3.00 by
+    #           tracker at 04:36 UTC; Gamma showed Padres=$1.000 (it won).
+    #           Gamma lookup had returned None on that close call, and
+    #           paper_trader fell back to tracker's wrong outcome. Fixed
+    #           by repair_paper_resolutions.py + this code change.
     #
     # Gamma's outcomePrices are the source of truth — they reflect the
     # market's actual resolution, not the whale's holdings.
-    outcome = tracker_outcome
+    #
+    # FALLBACK POLICY: if Gamma lookup returns None (unreachable after
+    # retries, or market still LIVE, or direction string doesn't match an
+    # outcome name), we mark the position as RESOLVED break-even ($0 pnl)
+    # rather than trusting the tracker. repair_paper_resolutions.py will
+    # re-scan and fix such break-evens later when Gamma is healthy.
     gamma_result = await resolve_ambiguous_via_gamma(
         pp["condition_id"], pp["direction"],
     )
-    if gamma_result is not None:
-        gamma_outcome, _ = gamma_result
-        if gamma_outcome != tracker_outcome and tracker_outcome in ("WIN", "LOSS"):
+    if gamma_result is not None and gamma_result[0] in ("WIN", "LOSS"):
+        outcome = gamma_result[0]
+        if outcome != tracker_outcome and tracker_outcome in ("WIN", "LOSS"):
             logger.warning(
                 "[%s] tracker outcome %s DISAGREES with Gamma %s for %s "
                 "side=%s — using Gamma (likely dual-side position bug)",
-                pp["whale_alias"], tracker_outcome, gamma_outcome,
+                pp["whale_alias"], tracker_outcome, outcome,
                 pp["market_title"][:40], pp["direction"],
             )
         elif tracker_outcome == "RESOLVED":
             logger.info(
                 "[%s] ambiguous RESOLVED upgraded via Gamma to %s: %s (cid=%s)",
-                pp["whale_alias"], gamma_outcome,
+                pp["whale_alias"], outcome,
                 pp["market_title"][:40], pp["condition_id"][:16],
             )
-        outcome = gamma_outcome
     else:
-        if tracker_outcome == "RESOLVED":
-            logger.info(
-                "[%s] RESOLVED remains ambiguous after Gamma lookup: %s",
-                pp["whale_alias"], pp["market_title"][:40],
+        # Either Gamma says LIVE, Gamma lookup exhausted retries, or
+        # direction string didn't match outcomes. Book as RESOLVED
+        # break-even rather than trust the tracker. repair script will
+        # fix if/when Gamma becomes reliable for this cid.
+        outcome = "RESOLVED"
+        gamma_state = "LIVE" if (gamma_result and gamma_result[0] == "LIVE") else "unreachable"
+        if tracker_outcome in ("WIN", "LOSS"):
+            logger.warning(
+                "[%s] Gamma %s at close, IGNORING tracker outcome=%s "
+                "(would have been phantom) -> marking RESOLVED break-even: %s",
+                pp["whale_alias"], gamma_state, tracker_outcome,
+                pp["market_title"][:40],
             )
         else:
-            logger.debug(
-                "[%s] Gamma lookup failed for verification, trusting tracker outcome %s",
-                pp["whale_alias"], tracker_outcome,
+            logger.info(
+                "[%s] Gamma %s at close, tracker=%s -> RESOLVED: %s",
+                pp["whale_alias"], gamma_state, tracker_outcome,
+                pp["market_title"][:40],
             )
 
     if outcome == "WIN":
