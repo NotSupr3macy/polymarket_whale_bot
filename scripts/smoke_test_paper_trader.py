@@ -499,22 +499,29 @@ async def run_tests():
     print(f'[OK] T14: bigsix whale filter correctly routes '
           f'(dogs+spreads accept, favs/totals reject)')
 
-    # Test 15: bigsix mute-bypass — query_candidates should return his row
-    # even when muted_reason='require_multi_trade'.
+    # Test 15: bigsix mute-bypass — query_candidates should return his rows
+    # regardless of muted_reason. Tests both 'require_multi_trade' and 'sport'
+    # since his tracker emits both under different scenarios.
     conn.execute("DELETE FROM paper_positions")
     conn.commit()
     past2 = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
     future3 = datetime.now(timezone.utc).isoformat()
-    # Clear previous bigsix seed and re-seed with require_multi_trade mute
-    insert_whale_position(
-        db, 'bigsix', '0xbigsix_test', 'Underdogs', 'Dog ML @ bigsix',
-        0.40, 15000, future3, muted_reason='require_multi_trade',
-    )
+    for mute_reason, cid in [
+        ('require_multi_trade', '0xbigsix_rmt'),
+        ('sport', '0xbigsix_sport'),
+        ('hour', '0xbigsix_hour'),
+    ]:
+        insert_whale_position(
+            db, 'bigsix', cid, 'Underdogs', f'Dog ML ({mute_reason})',
+            0.40, 15000, future3, muted_reason=mute_reason,
+        )
     cands = pt.query_candidates(conn, past2)
-    bigsix_candidates = [c for c in cands if c['alias'] == 'bigsix']
-    assert any(c['cid'] == '0xbigsix_test' for c in bigsix_candidates), \
-        f"bigsix mute-bypass failed: {bigsix_candidates}"
-    print(f'[OK] T15: bigsix require_multi_trade mute bypassed in paper trader')
+    bigsix_cids = {c['cid'] for c in cands if c['alias'] == 'bigsix'}
+    for cid in ['0xbigsix_rmt', '0xbigsix_sport', '0xbigsix_hour']:
+        assert cid in bigsix_cids, \
+            f"bigsix mute-bypass missed {cid}: {bigsix_cids}"
+    print(f'[OK] T15: bigsix mute-bypass covers all reasons '
+          f'(rmt/sport/hour all visible to paper trader)')
 
     conn.close()
     print('\n[ALL 16 TESTS PASSED]')

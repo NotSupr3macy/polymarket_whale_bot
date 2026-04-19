@@ -556,7 +556,12 @@ def query_candidates(conn: sqlite3.Connection, started_at: str) -> list[dict]:
           AND (
               muted_reason IS NULL
               OR (alias = 'nbasniper' AND muted_reason = 'sport')
-              OR (alias = 'bigsix' AND muted_reason = 'require_multi_trade')
+              -- bigsix: bypass ALL tracker mutes. His tracker muted the
+              -- Apr 19 Thunder -14.5 spread with reason='sport' (tracker
+              -- sport filter too narrow). We'd accept it downstream via
+              -- WHALE_FILTERS['bigsix'] (spreads always accepted). Paper
+              -- trader's own dog/spread filter is the gatekeeper.
+              OR (alias = 'bigsix')
           )
           AND NOT EXISTS (
               SELECT 1 FROM paper_positions pp
