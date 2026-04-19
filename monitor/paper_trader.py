@@ -92,27 +92,31 @@ MIN_POSITION_USD = 3.0  # below this, we won't open
 
 # Per-whale base allocation (fraction of bankroll) — confirmed by user
 #
-# Apr 19 update (after 24h live review):
-#   texaskid    1W/6L  (14% WR, −$25 over 24h)  → REMOVED; now SHADOW only
-#                      (see SHADOW_WHALES below — positions log-only, no open)
-#   sportmaster 13W/5L (72% WR, +$26)           — kept at $6 (top performer)
-#   Others as set in Apr 18 rebalance.
+# Apr 19 update #2 (after portfolio analysis on 51 resolved positions):
+#   TheOnlyHuman  1W/3L  (25% WR, −$17 over 4 bets)  → SHADOW
+#                        (3 consecutive Rockets losses — could be one bad
+#                         night, could be broken signal. Shadow while we
+#                         collect more data.)
+#   sportmaster  18W/8L  (69% WR, +$29, +37% ROI)    — kept at $6
+#   GIAYN        8W/5L   (62% WR, +$8,  +16% ROI)    — kept at $5
+#   (texaskid shadow-muted Apr 19 #1 after 1W/6L — still shadow)
 BASE_ALLOC = {
-    "TheOnlyHuman": 0.08,          # $8 — unchanged, limited live data
-    "kch123": 0.05,                # $5 — unchanged, quiet whale
-    "nbasniper": 0.04,             # $4 — shadow-to-live, no filter yet
-    "GamblingIsAllYouNeed": 0.05,  # $5 — after 4W/1L live then 7W/5L over 24h
-    "sportmaster777": 0.06,        # $6 — crushing it, 72% WR across 18 bets
-    "bigsix": 0.03,                # $3 — unchanged
+    "kch123": 0.05,                # $5 — unchanged, quiet whale (1 trade)
+    "nbasniper": 0.04,             # $4 — shadow-to-live, still silent
+    "GamblingIsAllYouNeed": 0.05,  # $5 — 62% WR, +16% ROI on 13 bets
+    "sportmaster777": 0.06,        # $6 — MVP at 69% WR, +37% ROI on 26 bets
+    "bigsix": 0.03,                # $3 — unchanged (0 trades yet)
 }
 
 # Whales muted from opening paper positions, but their candidate rows are
 # still logged at INFO level once per (alias, cid) so we keep collecting
 # performance data to decide re-inclusion. They are NOT in BASE_ALLOC.
 #
-# texaskid: 1W/6L over first 24h (14% WR, −$25 realized). Re-evaluate when
-# he shows 5 wins across any rolling 7-day window.
-SHADOW_WHALES = {"texaskid"}
+# texaskid:    1W/6L, 14% WR, −$25 realized. Revisit when 5 wins in any
+#              rolling 7-day window.
+# TheOnlyHuman: 1W/3L, 25% WR, −$17. Small sample — shadow rather than
+#              hard-remove. Revisit after 15+ tracked trades or 1 week.
+SHADOW_WHALES = {"texaskid", "TheOnlyHuman"}
 
 # Whales exempt from the post-loss tilt-guard multiplier (×0.5).
 # Rationale: tilt guard was designed for kch123 after his $430K

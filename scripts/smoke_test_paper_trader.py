@@ -137,30 +137,36 @@ async def run_tests():
 
     future_seen = datetime.now(timezone.utc).isoformat()
 
-    # Seed: TheOnlyHuman unmuted NBA position ($8 base)
-    insert_whale_position(db, 'TheOnlyHuman', '0xabc1', 'Lakers',
+    # Seed: kch123 unmuted position ($5 base, in BASE_ALLOC)
+    insert_whale_position(db, 'kch123', '0xabc1', 'Lakers',
                           'Lakers vs. Celtics', 0.55, 15000, future_seen)
-    # Seed: texaskid unmuted dog position
+    # Seed: texaskid unmuted dog position (SHADOW whale — should log-only)
     insert_whale_position(db, 'texaskid', '0xabc2', 'Rockies',
                           'Rockies vs. Dodgers', 0.42, 20000, future_seen,
                           table='texaskid_positions')
-    # Seed: nbasniper position with muted_reason='sport' (shadow mode)
+    # Seed: nbasniper position with muted_reason='sport' (shadow bypass, opens)
     insert_whale_position(db, 'nbasniper', '0xabc3', 'Mavs',
                           'Mavs vs. Warriors', 0.48, 25000, future_seen,
                           muted_reason='sport')
-    # Seed: bigsix MUTED (require_multi_trade) — should NOT create paper pos
+    # Seed: bigsix MUTED (require_multi_trade) — should NOT appear in candidates
     insert_whale_position(db, 'bigsix', '0xabc4', 'Rangers',
                           'Rangers vs. Kings', 0.60, 10000, future_seen,
                           muted_reason='require_multi_trade')
+    # Seed: TheOnlyHuman — also now a SHADOW whale (Apr 19 mute).
+    # Should appear in query_candidates but get skipped in the main loop.
+    insert_whale_position(db, 'TheOnlyHuman', '0xabc5', 'Knicks',
+                          'Knicks vs. Heat', 0.50, 18000, future_seen)
 
-    # Test 2: candidate query returns the 3 unmuted/bypassed positions
+    # Test 2: candidate query returns all 4 unmuted/bypassed positions
+    # (bigsix filtered out by muted_reason='require_multi_trade').
     cands = pt.query_candidates(conn, past)
     aliases = sorted(c['alias'] for c in cands)
-    assert aliases == ['TheOnlyHuman', 'nbasniper', 'texaskid'], f'Expected 3, got {aliases}'
+    assert aliases == ['TheOnlyHuman', 'kch123', 'nbasniper', 'texaskid'], \
+        f'Expected 4, got {aliases}'
     print(f'[OK] T2: candidate query returned {aliases} (bigsix muted — correctly excluded)')
 
-    # Test 3: run one tick → texaskid now SHADOW (log-only), so only 2 opens
-    # (TheOnlyHuman + nbasniper). Mirrors production main loop's shadow-skip.
+    # Test 3: run one tick → kch123 + nbasniper open, texaskid + TheOnlyHuman
+    # shadow-skip. Mirrors production main loop's shadow-skip.
     async def _one_tick():
         # Inline version of the poll loop, just one pass
         state_ = pt.load_state(conn)
@@ -186,23 +192,27 @@ async def run_tests():
     n_open = conn.execute(
         "SELECT COUNT(*) FROM paper_positions WHERE outcome='OPEN'"
     ).fetchone()[0]
-    assert n_open == 2, f'Expected 2 open (texaskid shadow-muted), got {n_open}'
-    print(f'[OK] T3: 2 paper positions opened (texaskid shadow-skipped)')
+    assert n_open == 2, \
+        f'Expected 2 open (texaskid + TheOnlyHuman shadow-muted), got {n_open}'
+    print(f'[OK] T3: 2 paper positions opened '
+          f'(texaskid + TheOnlyHuman shadow-skipped)')
 
-    # Check bankroll = 100 - (TheOnlyHuman $8 + nbasniper $4) = 88
+    # Check bankroll = 100 - (kch123 $5 + nbasniper $4) = 91
     state_after = pt.load_state(conn)
-    expected_bankroll = 100.0 - (8.0 + 4.0)
+    expected_bankroll = 100.0 - (5.0 + 4.0)
     assert abs(state_after['bankroll_usd'] - expected_bankroll) < 0.01, \
         f'Expected bankroll ${expected_bankroll}, got ${state_after["bankroll_usd"]}'
     print(f'[OK] T4: bankroll correctly deducted: ${state_after["bankroll_usd"]:.2f}')
 
-    # T4.5: shadow-log fired for texaskid (logged_keys contains its cid)
+    # T4.5: shadow-log fired for BOTH texaskid AND TheOnlyHuman
     assert ('texaskid', '0xabc2') in pt._shadow_logged_keys, \
         f'Expected texaskid shadow-log; got {pt._shadow_logged_keys}'
-    print(f'[OK] T4.5: shadow log captured texaskid (log-only, no paper pos)')
+    assert ('TheOnlyHuman', '0xabc5') in pt._shadow_logged_keys, \
+        f'Expected TheOnlyHuman shadow-log; got {pt._shadow_logged_keys}'
+    print(f'[OK] T4.5: shadow log captured BOTH texaskid + TheOnlyHuman')
 
-    # Test 5: Resolve TheOnlyHuman position as WIN → bankroll refills
-    mark_resolved(db, 'TheOnlyHuman', '0xabc1', 'WIN')
+    # Test 5: Resolve kch123 position as WIN → bankroll refills
+    mark_resolved(db, 'kch123', '0xabc1', 'WIN')
     mock_set_gamma_outcome('0xabc1', 'Lakers', 'WIN', 1.0)
     # Run resolution phase
     async def _resolve_tick():
@@ -221,10 +231,10 @@ async def run_tests():
                 await pt.close_paper_position(conn, pp, src, state_)
     await _resolve_tick()
 
-    # TheOnlyHuman WIN at entry 0.55: pnl = 8 * (1/0.55 - 1) = 8 * 0.8182 = +$6.55
-    # Bankroll gain: 8 (stake return) + 6.55 (pnl) = 14.55
+    # kch123 WIN at entry 0.55: pnl = 5 * (1/0.55 - 1) = 5 * 0.8182 = +$4.09
+    # Bankroll gain: 5 (stake return) + 4.09 (pnl) = 9.09
     state_after = pt.load_state(conn)
-    expected = (100.0 - 8 - 4) + 8.0 / 0.55  # stake back + payout at $1
+    expected = (100.0 - 5 - 4) + 5.0 / 0.55  # stake back + payout at $1
     assert abs(state_after['bankroll_usd'] - expected) < 0.01, \
         f'Expected ${expected:.2f}, got ${state_after["bankroll_usd"]:.2f}'
     print(f'[OK] T5: WIN resolution refilled bankroll to ${state_after["bankroll_usd"]:.2f} (expected ${expected:.2f})')
