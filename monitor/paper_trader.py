@@ -724,11 +724,22 @@ async def resolve_ambiguous_via_gamma(
                 last_err = "outcome price not numeric"
                 break
 
-            if wp >= 0.99:
+            # Apr 19 threshold loosened 0.99/0.01 → 0.95/0.05 to match
+            # whale_tracker and Polymarket's practical settlement curve.
+            # When a game ends, the CLOB price moves to ~$0.97-0.99 within
+            # seconds, but UMA oracle final-settlement to exactly $1.00 can
+            # take minutes-to-hours. The old 0.99 threshold caused paper
+            # trader to park many legitimate WINs/LOSSes as RESOLVED for
+            # that settlement window, only to be upgraded hours later by
+            # the repair script. 0.95/0.05 catches them the first time
+            # without loosening enough to risk mid-game false positives
+            # (in-game price rarely exceeds 0.90 without the underlying
+            # event being essentially decided).
+            if wp >= 0.95:
                 return ("WIN", 1.0)
-            if wp <= 0.01:
+            if wp <= 0.05:
                 return ("LOSS", 0.0)
-            # Market not at rails — genuinely still live.
+            # Market price not yet at/near rails — genuinely still live.
             return ("LIVE", wp)
 
     if last_err:

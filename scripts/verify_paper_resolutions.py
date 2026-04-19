@@ -44,12 +44,13 @@ def parse_outcomes(m):
 
 
 def determine_outcome(outcome_pairs, direction):
-    """Return ('WIN'|'LOSS'|'LIVE'|'NOT_FOUND', final_price)."""
+    """Return ('WIN'|'LOSS'|'LIVE'|'NOT_FOUND', final_price).
+    Threshold matches paper_trader.resolve_ambiguous_via_gamma (0.95/0.05)."""
     for name, price in outcome_pairs:
         if str(name).strip().lower() == str(direction).strip().lower():
-            if price >= 0.99:
+            if price >= 0.95:
                 return "WIN", price
-            if price <= 0.01:
+            if price <= 0.05:
                 return "LOSS", price
             return "LIVE", price
     return "NOT_FOUND", 0.0

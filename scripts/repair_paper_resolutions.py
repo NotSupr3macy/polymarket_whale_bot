@@ -59,11 +59,15 @@ def parse_outcomes(m):
 
 
 def determine_outcome(outcome_pairs, direction):
+    # Apr 19: threshold loosened 0.99/0.01 → 0.95/0.05 to match
+    # resolve_ambiguous_via_gamma in paper_trader.py. Catches markets
+    # that have settled on CLOB but haven't hit UMA-finalized $1.00/$0.00
+    # yet (settlement lag window).
     for name, price in outcome_pairs:
         if str(name).strip().lower() == str(direction).strip().lower():
-            if price >= 0.99:
+            if price >= 0.95:
                 return "WIN", 1.0
-            if price <= 0.01:
+            if price <= 0.05:
                 return "LOSS", 0.0
             return "LIVE", price
     return "NOT_FOUND", 0.0
