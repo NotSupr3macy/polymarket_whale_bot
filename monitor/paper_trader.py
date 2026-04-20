@@ -93,20 +93,23 @@ MIN_POSITION_USD = 3.0  # below this, we won't open
 
 # Per-whale base allocation (fraction of bankroll) — confirmed by user
 #
-# Apr 19 update #2 (after portfolio analysis on 51 resolved positions):
-#   TheOnlyHuman  1W/3L  (25% WR, −$17 over 4 bets)  → SHADOW
-#                        (3 consecutive Rockets losses — could be one bad
-#                         night, could be broken signal. Shadow while we
-#                         collect more data.)
-#   sportmaster  18W/8L  (69% WR, +$29, +37% ROI)    — kept at $6
-#   GIAYN        8W/5L   (62% WR, +$8,  +16% ROI)    — kept at $5
-#   (texaskid shadow-muted Apr 19 #1 after 1W/6L — still shadow)
+# Apr 19 update #3 (EOD strategic overhaul after 34W/33L 50.7% WR = −$28):
+#   Problem: 50/50 WR is NEGATIVE EV at avg entry price ~$0.55. Break-even
+#   requires WR >= entry_price. We were systematically buying favorites
+#   where whales expected 65% but implied was 57% -- rolling the dice on
+#   their judgment without the underlying info.
+#
+#   Fix: three levers in this commit:
+#     1) WHALE_MAX_ENTRY caps entries above each whale's break-even line
+#     2) WHALE_FILTERS dogs-or-spreads (like bigsix) extended to GIAYN,
+#        kch123, nbasniper. sportmaster exempt (broad edge).
+#     3) sportmaster bumped $6 -> $7 (underallocated given his 69%/+37% ROI)
 BASE_ALLOC = {
-    "kch123": 0.05,                # $5 — unchanged, quiet whale (1 trade)
-    "nbasniper": 0.04,             # $4 — shadow-to-live, still silent
-    "GamblingIsAllYouNeed": 0.05,  # $5 — 62% WR, +16% ROI on 13 bets
-    "sportmaster777": 0.06,        # $6 — MVP at 69% WR, +37% ROI on 26 bets
-    "bigsix": 0.03,                # $3 — unchanged (0 trades yet)
+    "kch123": 0.05,                # $5 — unchanged
+    "nbasniper": 0.04,             # $4 — unchanged
+    "GamblingIsAllYouNeed": 0.05,  # $5 — unchanged
+    "sportmaster777": 0.07,        # $7 — was $6, quarter-Kelly bump
+    "bigsix": 0.03,                # $3 — unchanged (filtered)
 }
 
 # Whales muted from opening paper positions, but their candidate rows are
@@ -189,26 +192,53 @@ def classify_subtype(title: str) -> str:
 # ── Per-whale edge filters ─────────────────────────────────────────────
 # Each function takes a candidate signal dict and returns True to accept
 # or False to reject. Rejected candidates are logged and skipped.
-# Whales without an entry here are unrestricted.
-def _bigsix_accept(sig: dict) -> bool:
-    """bigsix's empirical edge (fingerprint Apr 19, 91 resolved bets):
+# Whales without an entry here are unrestricted (up to WHALE_MAX_ENTRY).
+def _dogs_or_spreads_accept(sig: dict) -> bool:
+    """Accept iff the whale is firing on a DOG (entry < $0.50) OR a SPREAD.
+    Reject favs-on-non-spread and all totals. Originally derived from
+    bigsix's fingerprint (Apr 19):
         dogs (entry < $0.50):   62% WR  +34% ROI  <- PRINT
         favs (entry ≥ $0.50):   46% WR  -10% ROI  <- LEAK
         spreads (any price):    70% WR  +$63K     <- PRINT
         totals (O/U):           49% WR  -$61K     <- LEAK
-    Accept iff (dog) OR (spread). Skip favs-on-non-spread and all totals.
+    Applied to most whales in lieu of per-whale fingerprints. sportmaster
+    is EXEMPT because his proven 69% WR is broad across entry prices.
     """
     subtype = classify_subtype(sig.get("title", ""))
     if subtype == "spread":
         return True
     if subtype == "totals":
-        return False  # his O/U leak
+        return False  # O/U leaks across most whales
     entry = float(sig.get("entry_price", 0.5) or 0.5)
     return entry < 0.50  # dogs win; favs skip
 
 
 WHALE_FILTERS: dict[str, Callable[[dict], bool]] = {
-    "bigsix": _bigsix_accept,
+    # sportmaster777: intentionally NOT listed — broad edge, no restriction
+    "bigsix": _dogs_or_spreads_accept,
+    "GamblingIsAllYouNeed": _dogs_or_spreads_accept,
+    "kch123": _dogs_or_spreads_accept,
+    "nbasniper": _dogs_or_spreads_accept,
+}
+
+
+# ── Per-whale max entry price ──────────────────────────────────────────
+# Skip any bet where the whale's entry price is above their break-even
+# threshold (WR). Positive-EV requires entry_price < WR. A 2pp safety
+# margin keeps us comfortably positive. Prevents systematically buying
+# favorites at prices that exceed the whale's actual hit rate.
+#
+# Formula: EV = WR * (1/entry - 1) - (1 - WR), zero when entry = WR.
+#   sportmaster 69% WR -> break-even $0.69, cap $0.67
+#   GIAYN       50% WR -> break-even $0.50, cap $0.50 (tight)
+#   kch123      52% fp -> break-even $0.52, cap $0.50 (safety margin)
+#   nbasniper   25% WR on tiny sample, cap conservative $0.45
+#   bigsix:     gated by WHALE_FILTERS (dogs + spreads), no max_entry
+WHALE_MAX_ENTRY = {
+    "sportmaster777": 0.67,
+    "GamblingIsAllYouNeed": 0.50,
+    "kch123": 0.50,
+    "nbasniper": 0.45,
 }
 
 # Which table each whale writes to (texaskid = legacy separate table)
@@ -1063,9 +1093,10 @@ async def run() -> None:
                 if base_frac is None:
                     continue
 
-                # Per-whale edge filter (e.g. bigsix dogs+spreads only).
-                # Runs before the Gamma/game-start check so we don't burn
-                # API calls on signals we'll reject anyway.
+                # Per-whale edge filter (dogs+spreads only for most whales;
+                # sportmaster exempt). Runs before the Gamma/game-start
+                # check so we don't burn API calls on signals we'll reject
+                # anyway.
                 whale_filter = WHALE_FILTERS.get(sig["alias"])
                 if whale_filter and not whale_filter(sig):
                     logger.info(
@@ -1073,6 +1104,18 @@ async def run() -> None:
                         "(subtype=%s)",
                         sig["alias"], sig["title"][:50], sig["entry_price"],
                         classify_subtype(sig["title"]),
+                    )
+                    continue
+
+                # Per-whale max entry price (break-even guard). Skip any
+                # fire where entry > whale's historical WR minus safety
+                # margin — systematically buying above break-even is -EV.
+                max_entry = WHALE_MAX_ENTRY.get(sig["alias"])
+                if max_entry is not None and sig["entry_price"] > max_entry:
+                    logger.info(
+                        "SKIP open [%s] entry $%.3f > max-entry $%.3f: %s",
+                        sig["alias"], sig["entry_price"], max_entry,
+                        sig["title"][:50],
                     )
                     continue
 

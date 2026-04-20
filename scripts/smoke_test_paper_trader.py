@@ -137,16 +137,19 @@ async def run_tests():
 
     future_seen = datetime.now(timezone.utc).isoformat()
 
-    # Seed: kch123 unmuted position ($5 base, in BASE_ALLOC)
+    # Seed: kch123 unmuted DOG position ($5 base, in BASE_ALLOC).
+    # Entry 0.45 because kch123 now has the dogs-or-spreads filter +
+    # a max_entry cap of 0.50 (Apr 19 strategic overhaul).
     insert_whale_position(db, 'kch123', '0xabc1', 'Lakers',
-                          'Lakers vs. Celtics', 0.55, 15000, future_seen)
+                          'Lakers vs. Celtics', 0.45, 15000, future_seen)
     # Seed: texaskid unmuted dog position (SHADOW whale — should log-only)
     insert_whale_position(db, 'texaskid', '0xabc2', 'Rockies',
                           'Rockies vs. Dodgers', 0.42, 20000, future_seen,
                           table='texaskid_positions')
-    # Seed: nbasniper position with muted_reason='sport' (shadow bypass, opens)
+    # Seed: nbasniper position with muted_reason='sport' (shadow bypass, opens).
+    # Entry 0.40 to pass both the dogs-or-spreads filter and max_entry=0.45.
     insert_whale_position(db, 'nbasniper', '0xabc3', 'Mavs',
-                          'Mavs vs. Warriors', 0.48, 25000, future_seen,
+                          'Mavs vs. Warriors', 0.40, 25000, future_seen,
                           muted_reason='sport')
     # Seed: bigsix — muted with require_multi_trade BUT paper trader bypasses
     # this mute (like nbasniper sport-bypass). Entry=$0.60 is a FAV on h2h-ml,
@@ -175,7 +178,7 @@ async def run_tests():
     async def _one_tick():
         # Inline version of the poll loop, just one pass.
         # Mirrors production main loop ordering:
-        #   shadow-skip → base_alloc check → whale filter → open
+        #   shadow-skip → base_alloc check → whale filter → max_entry → open
         state_ = pt.load_state(conn)
         # Resolutions first (none yet)
         # Then signals
@@ -188,6 +191,9 @@ async def run_tests():
             whale_filter = pt.WHALE_FILTERS.get(sig['alias'])
             if whale_filter and not whale_filter(sig):
                 continue  # per-whale edge filter rejected
+            max_entry = pt.WHALE_MAX_ENTRY.get(sig['alias'])
+            if max_entry is not None and sig['entry_price'] > max_entry:
+                continue  # entry above break-even cap
             base_size = pt.STARTING_BANKROLL * base_frac
             mult, desc = pt.compute_conviction_mult(
                 conn, sig['alias'], sig['cid'], sig['direction'],
@@ -241,10 +247,10 @@ async def run_tests():
                 await pt.close_paper_position(conn, pp, src, state_)
     await _resolve_tick()
 
-    # kch123 WIN at entry 0.55: pnl = 5 * (1/0.55 - 1) = 5 * 0.8182 = +$4.09
-    # Bankroll gain: 5 (stake return) + 4.09 (pnl) = 9.09
+    # kch123 WIN at entry 0.45: pnl = 5 * (1/0.45 - 1) = 5 * 1.2222 = +$6.11
+    # Bankroll gain: 5 (stake return) + 6.11 (pnl) = 11.11
     state_after = pt.load_state(conn)
-    expected = (100.0 - 5 - 4) + 5.0 / 0.55  # stake back + payout at $1
+    expected = (100.0 - 5 - 4) + 5.0 / 0.45  # stake back + payout at $1
     assert abs(state_after['bankroll_usd'] - expected) < 0.01, \
         f'Expected ${expected:.2f}, got ${state_after["bankroll_usd"]:.2f}'
     print(f'[OK] T5: WIN resolution refilled bankroll to ${state_after["bankroll_usd"]:.2f} (expected ${expected:.2f})')
@@ -523,8 +529,55 @@ async def run_tests():
     print(f'[OK] T15: bigsix mute-bypass covers all reasons '
           f'(rmt/sport/hour all visible to paper trader)')
 
+    # Test 16: WHALE_MAX_ENTRY enforcement
+    # sportmaster cap = 0.67. At 0.70 fav, skip; at 0.50 fav, accept.
+    # GIAYN cap = 0.50. At 0.55, skip; at 0.48, accept (also passes dog filter).
+    cases = [
+        ('sportmaster777', 0.70, False, 'sportmaster 0.70 > cap 0.67'),
+        ('sportmaster777', 0.65, True,  'sportmaster 0.65 < cap 0.67'),
+        ('GamblingIsAllYouNeed', 0.55, False, 'GIAYN 0.55 > cap 0.50'),
+        ('GamblingIsAllYouNeed', 0.48, True,  'GIAYN 0.48 < cap 0.50'),
+        ('nbasniper', 0.48, False, 'nbasniper 0.48 > cap 0.45'),
+        ('nbasniper', 0.40, True,  'nbasniper 0.40 < cap 0.45'),
+    ]
+    for alias, entry, expected_pass, desc in cases:
+        cap = pt.WHALE_MAX_ENTRY.get(alias)
+        actual_pass = cap is None or entry <= cap
+        assert actual_pass == expected_pass, \
+            f'max_entry case [{desc}] expected pass={expected_pass}, got {actual_pass}'
+    print(f'[OK] T16: WHALE_MAX_ENTRY caps correctly enforced for all whales')
+
+    # Test 17: dogs-or-spreads filter now applied to GIAYN, kch123, nbasniper
+    # (previously only bigsix).
+    whales_with_filter = ['bigsix', 'GamblingIsAllYouNeed', 'kch123', 'nbasniper']
+    whales_unrestricted = ['sportmaster777']
+    for alias in whales_with_filter:
+        assert alias in pt.WHALE_FILTERS, \
+            f'{alias} should have a whale filter registered'
+        # Test: fav on h2h-ml should be rejected
+        sig = {'alias': alias, 'title': 'Team A vs. Team B', 'entry_price': 0.60}
+        assert not pt.WHALE_FILTERS[alias](sig), \
+            f'{alias} should reject $0.60 fav on h2h-ml'
+        # Test: dog on h2h-ml should pass
+        sig = {'alias': alias, 'title': 'Team A vs. Team B', 'entry_price': 0.40}
+        assert pt.WHALE_FILTERS[alias](sig), \
+            f'{alias} should accept $0.40 dog on h2h-ml'
+        # Test: spread at any price should pass
+        sig = {'alias': alias, 'title': 'Spread: Team A (-5.5)', 'entry_price': 0.70}
+        assert pt.WHALE_FILTERS[alias](sig), \
+            f'{alias} should accept spread at any price'
+        # Test: totals always rejected
+        sig = {'alias': alias, 'title': 'Team A vs. Team B: O/U 215.5', 'entry_price': 0.40}
+        assert not pt.WHALE_FILTERS[alias](sig), \
+            f'{alias} should reject totals even at dog price'
+    for alias in whales_unrestricted:
+        assert alias not in pt.WHALE_FILTERS, \
+            f'{alias} should be unrestricted (no entry in WHALE_FILTERS)'
+    print(f'[OK] T17: dogs-or-spreads filter applied to '
+          f'{len(whales_with_filter)} whales; sportmaster unrestricted')
+
     conn.close()
-    print('\n[ALL 16 TESTS PASSED]')
+    print('\n[ALL 18 TESTS PASSED]')
 
 asyncio.run(run_tests())
 
