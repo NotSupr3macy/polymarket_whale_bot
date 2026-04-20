@@ -193,52 +193,96 @@ def classify_subtype(title: str) -> str:
 # Each function takes a candidate signal dict and returns True to accept
 # or False to reject. Rejected candidates are logged and skipped.
 # Whales without an entry here are unrestricted (up to WHALE_MAX_ENTRY).
+#
+# Apr 20 rewire: earlier Apr 19 used one generic dogs-or-spreads filter for
+# bigsix/GIAYN/kch123/nbasniper. Real fingerprints proved each whale has a
+# DIFFERENT edge shape — blanket filter was killing 3 of 4 whales' profits.
+# Each function below is derived from actual trade data.
 def _dogs_or_spreads_accept(sig: dict) -> bool:
-    """Accept iff the whale is firing on a DOG (entry < $0.50) OR a SPREAD.
-    Reject favs-on-non-spread and all totals. Originally derived from
-    bigsix's fingerprint (Apr 19):
+    """bigsix fingerprint (Apr 19, 91 resolved bets):
         dogs (entry < $0.50):   62% WR  +34% ROI  <- PRINT
         favs (entry ≥ $0.50):   46% WR  -10% ROI  <- LEAK
         spreads (any price):    70% WR  +$63K     <- PRINT
         totals (O/U):           49% WR  -$61K     <- LEAK
-    Applied to most whales in lieu of per-whale fingerprints. sportmaster
-    is EXEMPT because his proven 69% WR is broad across entry prices.
+    Accept iff dog OR spread, never totals or fav-on-non-spread.
     """
     subtype = classify_subtype(sig.get("title", ""))
     if subtype == "spread":
         return True
     if subtype == "totals":
-        return False  # O/U leaks across most whales
+        return False
     entry = float(sig.get("entry_price", 0.5) or 0.5)
-    return entry < 0.50  # dogs win; favs skip
+    return entry < 0.50
+
+
+def _giayn_accept(sig: dict) -> bool:
+    """GIAYN paper-sample (Apr 19, 24 resolved):
+        h2h-ml fav:   70% WR  +$12.22  <- PRIMARY EDGE
+        h2h-ml dog:   43% WR  -$1.87
+        totals:       50% WR  -$0.84
+        spread fav:    0% WR  -$9.00   <- big leak
+    His edge is h2h-ml FAVORITES (not dogs). Accept h2h-ml only.
+    max_entry=0.65 gates the upper bound so we don't take deep chalk.
+    """
+    return classify_subtype(sig.get("title", "")) == "h2h-ml"
+
+
+def _kch123_accept(sig: dict) -> bool:
+    """kch123 fingerprint (5.2 days, 45 resolved, +$55K PnL):
+        dog ($0.25-0.50):       50% WR  +$39,958  +41% ROI  <- PRINT
+        heavy fav ($0.75-0.90): 100% WR +$35,199  +23% ROI  <- PRINT
+        mid fav ($0.50-0.75):   42% WR  -$18,038   -4% ROI  <- DEAD ZONE
+        chalk ($0.90+):         100% WR +$492             (tiny)
+    Barbell strategy — accept dogs (<$0.50) or heavy favs (≥$0.75).
+    Skip the mid-fav dead zone entirely.
+    """
+    entry = float(sig.get("entry_price", 0.5) or 0.5)
+    if entry < 0.50:
+        return True   # dog
+    if entry >= 0.75:
+        return True   # heavy fav (incl chalk)
+    return False      # mid-fav dead zone
+
+
+def _nbasniper_accept(sig: dict) -> bool:
+    """nbasniper fingerprint (32.8 days, 313 resolved, +$6.07M PnL):
+        spread:   72W/49L  59.5% WR  +$3.09M  <- top
+        totals:   93W/72L  56.4% WR  +$1.60M
+        h2h-ml:   14W/11L  56.0% WR  +$1.53M
+        daily-ml:  0W/ 2L   0.0% WR  -$146K   <- ONLY LEAK
+    Profitable across nearly everything. Skip only daily-ml.
+    """
+    return classify_subtype(sig.get("title", "")) != "daily-ml"
 
 
 WHALE_FILTERS: dict[str, Callable[[dict], bool]] = {
-    # sportmaster777: intentionally NOT listed — broad edge, no restriction
+    # sportmaster777: intentionally NOT listed — broad 69% WR across all
+    # subtypes and price buckets per 26-bet paper sample.
     "bigsix": _dogs_or_spreads_accept,
-    "GamblingIsAllYouNeed": _dogs_or_spreads_accept,
-    "kch123": _dogs_or_spreads_accept,
-    "nbasniper": _dogs_or_spreads_accept,
+    "GamblingIsAllYouNeed": _giayn_accept,
+    "kch123": _kch123_accept,
+    "nbasniper": _nbasniper_accept,
 }
 
 
 # ── Per-whale max entry price ──────────────────────────────────────────
-# Skip any bet where the whale's entry price is above their break-even
-# threshold (WR). Positive-EV requires entry_price < WR. A 2pp safety
-# margin keeps us comfortably positive. Prevents systematically buying
-# favorites at prices that exceed the whale's actual hit rate.
+# Skip any bet where the whale's entry > their break-even threshold (WR).
+# Positive-EV requires entry_price < WR. A safety margin (2-5pp) keeps us
+# comfortably positive. Prevents systematically buying above break-even.
 #
 # Formula: EV = WR * (1/entry - 1) - (1 - WR), zero when entry = WR.
-#   sportmaster 69% WR -> break-even $0.69, cap $0.67
-#   GIAYN       50% WR -> break-even $0.50, cap $0.50 (tight)
-#   kch123      52% fp -> break-even $0.52, cap $0.50 (safety margin)
-#   nbasniper   25% WR on tiny sample, cap conservative $0.45
-#   bigsix:     gated by WHALE_FILTERS (dogs + spreads), no max_entry
+#
+# Apr 20 retune based on fingerprints:
+#   sportmaster 69% WR (broad)     -> cap 0.67 (unchanged)
+#   GIAYN       70% WR h2h-ml fav  -> cap 0.65 (was 0.50 -- was blocking winners)
+#   kch123      barbell (see filter) -> cap 0.90 (allow heavy-fav slice)
+#   nbasniper   57.2% overall      -> cap 0.55 (conservative safety margin)
+#   bigsix:     gated by WHALE_FILTERS, no max_entry (spreads print at any price)
 WHALE_MAX_ENTRY = {
     "sportmaster777": 0.67,
-    "GamblingIsAllYouNeed": 0.50,
-    "kch123": 0.50,
-    "nbasniper": 0.45,
+    "GamblingIsAllYouNeed": 0.65,
+    "kch123": 0.90,
+    "nbasniper": 0.55,
 }
 
 # Which table each whale writes to (texaskid = legacy separate table)

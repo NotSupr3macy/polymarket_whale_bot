@@ -529,16 +529,17 @@ async def run_tests():
     print(f'[OK] T15: bigsix mute-bypass covers all reasons '
           f'(rmt/sport/hour all visible to paper trader)')
 
-    # Test 16: WHALE_MAX_ENTRY enforcement
-    # sportmaster cap = 0.67. At 0.70 fav, skip; at 0.50 fav, accept.
-    # GIAYN cap = 0.50. At 0.55, skip; at 0.48, accept (also passes dog filter).
+    # Test 16: WHALE_MAX_ENTRY enforcement (Apr 20 retune per fingerprints)
+    # sportmaster cap=0.67, GIAYN=0.65, kch123=0.90, nbasniper=0.55
     cases = [
-        ('sportmaster777', 0.70, False, 'sportmaster 0.70 > cap 0.67'),
-        ('sportmaster777', 0.65, True,  'sportmaster 0.65 < cap 0.67'),
-        ('GamblingIsAllYouNeed', 0.55, False, 'GIAYN 0.55 > cap 0.50'),
-        ('GamblingIsAllYouNeed', 0.48, True,  'GIAYN 0.48 < cap 0.50'),
-        ('nbasniper', 0.48, False, 'nbasniper 0.48 > cap 0.45'),
-        ('nbasniper', 0.40, True,  'nbasniper 0.40 < cap 0.45'),
+        ('sportmaster777',     0.70, False, 'sportmaster 0.70 > cap 0.67'),
+        ('sportmaster777',     0.65, True,  'sportmaster 0.65 < cap 0.67'),
+        ('GamblingIsAllYouNeed', 0.70, False, 'GIAYN 0.70 > cap 0.65'),
+        ('GamblingIsAllYouNeed', 0.60, True,  'GIAYN 0.60 < cap 0.65 (h2h fav)'),
+        ('kch123',             0.95, False, 'kch123 0.95 > cap 0.90 (chalk)'),
+        ('kch123',             0.85, True,  'kch123 0.85 heavy-fav <= cap 0.90'),
+        ('nbasniper',          0.60, False, 'nbasniper 0.60 > cap 0.55'),
+        ('nbasniper',          0.50, True,  'nbasniper 0.50 < cap 0.55'),
     ]
     for alias, entry, expected_pass, desc in cases:
         cap = pt.WHALE_MAX_ENTRY.get(alias)
@@ -547,34 +548,38 @@ async def run_tests():
             f'max_entry case [{desc}] expected pass={expected_pass}, got {actual_pass}'
     print(f'[OK] T16: WHALE_MAX_ENTRY caps correctly enforced for all whales')
 
-    # Test 17: dogs-or-spreads filter now applied to GIAYN, kch123, nbasniper
-    # (previously only bigsix).
-    whales_with_filter = ['bigsix', 'GamblingIsAllYouNeed', 'kch123', 'nbasniper']
-    whales_unrestricted = ['sportmaster777']
-    for alias in whales_with_filter:
-        assert alias in pt.WHALE_FILTERS, \
-            f'{alias} should have a whale filter registered'
-        # Test: fav on h2h-ml should be rejected
-        sig = {'alias': alias, 'title': 'Team A vs. Team B', 'entry_price': 0.60}
-        assert not pt.WHALE_FILTERS[alias](sig), \
-            f'{alias} should reject $0.60 fav on h2h-ml'
-        # Test: dog on h2h-ml should pass
-        sig = {'alias': alias, 'title': 'Team A vs. Team B', 'entry_price': 0.40}
-        assert pt.WHALE_FILTERS[alias](sig), \
-            f'{alias} should accept $0.40 dog on h2h-ml'
-        # Test: spread at any price should pass
-        sig = {'alias': alias, 'title': 'Spread: Team A (-5.5)', 'entry_price': 0.70}
-        assert pt.WHALE_FILTERS[alias](sig), \
-            f'{alias} should accept spread at any price'
-        # Test: totals always rejected
-        sig = {'alias': alias, 'title': 'Team A vs. Team B: O/U 215.5', 'entry_price': 0.40}
-        assert not pt.WHALE_FILTERS[alias](sig), \
-            f'{alias} should reject totals even at dog price'
-    for alias in whales_unrestricted:
-        assert alias not in pt.WHALE_FILTERS, \
-            f'{alias} should be unrestricted (no entry in WHALE_FILTERS)'
-    print(f'[OK] T17: dogs-or-spreads filter applied to '
-          f'{len(whales_with_filter)} whales; sportmaster unrestricted')
+    # Test 17: each whale now has a fingerprint-tuned filter (Apr 20 rewire)
+    # ── bigsix: dogs-or-spreads (unchanged) ────────────────────────────
+    f = pt.WHALE_FILTERS['bigsix']
+    assert     f({'title': 'Team A vs. B', 'entry_price': 0.40})  # dog h2h
+    assert not f({'title': 'Team A vs. B', 'entry_price': 0.60})  # fav h2h
+    assert     f({'title': 'Spread: A (-5.5)', 'entry_price': 0.70})  # spread
+    assert not f({'title': 'A vs. B: O/U 215.5', 'entry_price': 0.40})  # totals
+    # ── GIAYN: h2h-ml only ─────────────────────────────────────────────
+    f = pt.WHALE_FILTERS['GamblingIsAllYouNeed']
+    assert     f({'title': 'Team A vs. B', 'entry_price': 0.60})  # h2h fav OK
+    assert     f({'title': 'Team A vs. B', 'entry_price': 0.40})  # h2h dog OK
+    assert not f({'title': 'Spread: A (-5.5)', 'entry_price': 0.40})  # spread blocked
+    assert not f({'title': 'A vs. B: O/U 215.5', 'entry_price': 0.40})  # totals blocked
+    # ── kch123: barbell (dogs <0.50 or heavy favs >=0.75) ─────────────
+    f = pt.WHALE_FILTERS['kch123']
+    assert     f({'title': 'A vs. B', 'entry_price': 0.30})   # dog
+    assert     f({'title': 'A vs. B', 'entry_price': 0.49})   # dog edge
+    assert not f({'title': 'A vs. B', 'entry_price': 0.55})   # mid-fav DEAD ZONE
+    assert not f({'title': 'A vs. B', 'entry_price': 0.70})   # mid-fav top
+    assert     f({'title': 'A vs. B', 'entry_price': 0.75})   # heavy fav entry
+    assert     f({'title': 'A vs. B', 'entry_price': 0.85})   # heavy fav
+    # ── nbasniper: all subtypes except daily-ml ────────────────────────
+    f = pt.WHALE_FILTERS['nbasniper']
+    assert     f({'title': 'A vs. B', 'entry_price': 0.40})  # h2h OK
+    assert     f({'title': 'Spread: A (-5.5)', 'entry_price': 0.60})  # spread OK
+    assert     f({'title': 'A vs. B: O/U 215.5', 'entry_price': 0.45})  # totals OK
+    assert not f({'title': 'Will A win on 2026-04-20?', 'entry_price': 0.40})  # daily-ml blocked
+    # ── sportmaster: not in WHALE_FILTERS ──────────────────────────────
+    assert 'sportmaster777' not in pt.WHALE_FILTERS
+    print(f'[OK] T17: per-whale fingerprint-tuned filters '
+          f'(bigsix=dogs+spreads, GIAYN=h2h-ml only, '
+          f'kch123=barbell, nbasniper=non-daily, sportmaster=unrestricted)')
 
     conn.close()
     print('\n[ALL 18 TESTS PASSED]')
