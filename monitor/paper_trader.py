@@ -149,13 +149,26 @@ TILT_GUARD_EXCLUDE = {"GamblingIsAllYouNeed", "sportmaster777"}
 # within his dog/spread edge zone without flooding concurrency budget.
 MAX_CONCURRENT_BY_WHALE = {"GamblingIsAllYouNeed": 8, "bigsix": 5}
 
-# Skip any entry where the market's game_start_time is within this many
-# minutes away, OR the game has already started. Catches:
-#   - last-15-min pre-game fires (often hedges or line-chase)
-#   - in-game whale entries at extreme prices (e.g. sportmaster Rockets/Lakers
-#     Over 207.5 at $0.073 — mid-game scramble, lost $3)
-# Set to 0 to disable.
-MIN_MINUTES_TO_GAME_START = 15
+# Apr 20 DISABLED. The filter was blocking all of sportmaster's in-game
+# betting, which accounts for a large share of his proven 69% WR edge.
+# It was originally added to catch one bad trade (Rockets/Lakers Over
+# 207.5 at $0.073 — a mid-game scramble at extreme price that lost $3).
+# That specific pattern is now caught by MIN_ENTRY_PRICE instead, without
+# blocking legitimate in-game action.
+#
+# Set to 0 = disabled. Kept as a config knob in case we need it later
+# (e.g. if a specific whale shows bad in-game edge).
+MIN_MINUTES_TO_GAME_START = 0
+
+# Apr 20 NEW. Block any bet where the whale's entry price is below this
+# floor, regardless of timing or whale. Catches the desperation-longshot
+# pattern that made the time filter necessary:
+#   - sportmaster Rockets/Lakers Over 207.5 at $0.073 (lost $3)
+#   - sportmaster Raptors ML at $0.059 (would have lost ~$3)
+# Also naturally prevents us from paying down to single-digit implied
+# probabilities where a single sample is noisy even for proven whales.
+# $0.10 = 10% implied probability threshold.
+MIN_ENTRY_PRICE = 0.10
 
 
 # ── Subtype classifier (used by WHALE_FILTERS) ─────────────────────────
@@ -1159,6 +1172,19 @@ async def run() -> None:
                     logger.info(
                         "SKIP open [%s] entry $%.3f > max-entry $%.3f: %s",
                         sig["alias"], sig["entry_price"], max_entry,
+                        sig["title"][:50],
+                    )
+                    continue
+
+                # Global min-entry floor. Blocks desperation longshots at
+                # any implied probability below MIN_ENTRY_PRICE. Replaces
+                # the time-to-event filter for catching the specific
+                # $0.05-$0.10 scramble pattern.
+                if sig["entry_price"] < MIN_ENTRY_PRICE:
+                    logger.info(
+                        "SKIP open [%s] entry $%.3f < min-entry $%.3f: %s "
+                        "(longshot too thin)",
+                        sig["alias"], sig["entry_price"], MIN_ENTRY_PRICE,
                         sig["title"][:50],
                     )
                     continue

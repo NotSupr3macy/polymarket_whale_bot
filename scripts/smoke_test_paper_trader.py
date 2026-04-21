@@ -581,8 +581,18 @@ async def run_tests():
           f'(bigsix=dogs+spreads, GIAYN=h2h-ml only, '
           f'kch123=barbell, nbasniper=non-daily, sportmaster=unrestricted)')
 
+    # Test 18: MIN_ENTRY_PRICE floor blocks desperation longshots
+    # at any price below $0.10 regardless of whale.
+    assert pt.MIN_ENTRY_PRICE == 0.10, \
+        f'MIN_ENTRY_PRICE expected 0.10, got {pt.MIN_ENTRY_PRICE}'
+    # Time-to-event should be disabled (Apr 20)
+    assert pt.MIN_MINUTES_TO_GAME_START == 0, \
+        f'MIN_MINUTES_TO_GAME_START expected 0 (disabled), got {pt.MIN_MINUTES_TO_GAME_START}'
+    print(f'[OK] T18: MIN_ENTRY_PRICE=${pt.MIN_ENTRY_PRICE:.2f} floor active; '
+          f'time-to-event filter disabled ({pt.MIN_MINUTES_TO_GAME_START}min)')
+
     conn.close()
-    print('\n[ALL 18 TESTS PASSED]')
+    print('\n[ALL 19 TESTS PASSED]')
 
 asyncio.run(run_tests())
 
