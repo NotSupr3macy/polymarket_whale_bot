@@ -95,17 +95,21 @@ def get_client():
         api_passphrase=_require_env("POLYMARKET_API_PASSPHRASE"),
     )
 
-    # signature_type=1 is for wallet-derived keys (most common for API users)
-    # signature_type=2 is for proxy wallets (magic/gnosis safe) — not used here
+    # signature_type controls how orders and balance queries are signed.
+    # 0 = EOA direct (no proxy) — newest Polymarket signup flow (relay-based)
+    # 1 = POLY_PROXY — older proxy-wallet flow
+    # 2 = POLY_GNOSIS_SAFE — for Gnosis Safe multisig setups
+    # Controlled by env so we can switch without code change.
+    sig_type = int(os.getenv("POLYMARKET_SIGNATURE_TYPE", "0"))
     _client = pkg["ClobClient"](
         host=CLOB_HOST,
         key=pkey,
         chain_id=POLYGON_CHAIN_ID,
         creds=creds,
-        signature_type=1,
+        signature_type=sig_type,
     )
-    logger.info("CLOB client constructed for chain=%d signature_type=1",
-                POLYGON_CHAIN_ID)
+    logger.info("CLOB client constructed chain=%d signature_type=%d",
+                POLYGON_CHAIN_ID, sig_type)
     return _client
 
 
@@ -300,9 +304,10 @@ async def get_polymarket_balance() -> float:
         # the balance of the EOA (which is $0 after deposit) instead
         # of the proxy (where the $10 actually lives).
         from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+        sig_type = int(os.getenv("POLYMARKET_SIGNATURE_TYPE", "0"))
         params = BalanceAllowanceParams(
             asset_type=AssetType.COLLATERAL,
-            signature_type=1,  # POLY_PROXY for MetaMask signups
+            signature_type=sig_type,
         )
         bal = client.get_balance_allowance(params)
         if isinstance(bal, dict):
