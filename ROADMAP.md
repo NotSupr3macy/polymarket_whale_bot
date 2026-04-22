@@ -52,11 +52,46 @@ what a retail bettor could actually execute.
 can't actually fill at whale's price ±0.005, skip. Aligns paper with
 reality.
 
-### 1c. Live trading path
-**Priority:** only after 2+ weeks of paper >+10% ROI.
-Move from `paper_positions` to real CLOB order placement. Requires
-signing key + real capital. polymarket-clob handles the order
-lifecycle.
+### 1c. Live trading path — **IN PROGRESS (Apr 22, 2026)**
+**Status:** Building minimum-viable trial — sportmaster-only, $10 bankroll,
+3-day technical validation.
+
+User greenlit all 5 preconditions (regulatory awareness, self-directed
+account setup, patience for build, treats $10 as potentially lost,
+manages own key in server `.env`).
+
+**Build order:**
+1. `docs/LIVE_TRIAL_SETUP.md` — user-facing step-by-step (done)
+2. `monitor/clob_client_wrapper.py` — signing + order placement
+3. `monitor/trade_safety.py` — circuit breakers + reconciliation
+4. `monitor/live_trader.py` — sportmaster-only daemon, $1/trade
+5. `live_positions` + `live_state` DB schema
+6. `scripts/live_precheck.py` — verify creds + balances
+7. `scripts/live_smoke_test.py` — $0.50 test order
+8. `deploy/start_live_trader.sh` + `stop_live_trader.sh`
+
+**Deferred for trial** (add later if scaling to multi-whale / bigger):
+- Multi-whale support (GIAYN, kch123, nbasniper, bigsix)
+- SHADOW_WHALES pipeline
+- Consensus multiplier
+- Per-whale concurrent cap
+- Repair cron (redemption happens on-chain, no RESOLVED concept)
+
+**Trial success criteria (after 3 days live):**
+- ≥90% of orders place successfully
+- Mean slippage < 2% vs whale's entry price
+- All winning positions redeem to USDC automatically
+- DB stays reconciled to on-chain within $1
+- No emergency stops triggered by code bugs
+
+**Trial non-goals:**
+- Profitability (the $10 is expected to be volatile)
+- Matching paper trader's WR exactly (live will have slippage + liquidity drag)
+
+**Upon trial success, next phases:**
+- `2a`: scale bankroll $10 → $50, same single-whale config, run 1 week
+- `2b`: add second whale (bigsix or GIAYN), $50 → $100
+- `2c`: full multi-whale live mirror of paper trader
 
 ---
 
@@ -89,4 +124,4 @@ two whales always win/lose together, they're effectively one signal
 
 ---
 
-**Last updated:** 2026-04-20 — post fingerprint-rewire commit `e8e89a8`
+**Last updated:** 2026-04-22 — Phase 1c live trial kickoff
