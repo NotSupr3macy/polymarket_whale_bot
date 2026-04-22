@@ -89,22 +89,31 @@ def main():
         print("         - Rate-limit on API key operations (wait 60s)", file=sys.stderr)
         return 1
 
-    # Extract values from the creds object (handle various shapes)
-    api_key = getattr(creds, "api_key", None) or creds.get("apiKey") if hasattr(creds, "get") else None
-    api_secret = getattr(creds, "api_secret", None) or (creds.get("secret") if hasattr(creds, "get") else None)
-    api_passphrase = getattr(creds, "api_passphrase", None) or (creds.get("passphrase") if hasattr(creds, "get") else None)
+    # Extract values from the creds object. Try dataclass attrs first
+    # (py-clob-client >=0.6 uses snake_case attrs on ApiCreds), then
+    # fall back to dict-style, then camelCase attrs.
+    def _pick(obj, *names):
+        # Attribute access
+        for n in names:
+            v = getattr(obj, n, None)
+            if v:
+                return v
+        # Dict access
+        if hasattr(obj, "get"):
+            for n in names:
+                v = obj.get(n)
+                if v:
+                    return v
+        return None
 
-    if not (api_key and api_secret and api_passphrase):
-        # Try direct attribute access with different names
-        api_key = getattr(creds, "apiKey", api_key)
-        api_secret = getattr(creds, "secret", api_secret)
-        api_passphrase = getattr(creds, "passphrase", api_passphrase)
+    api_key = _pick(creds, "api_key", "apiKey", "key")
+    api_secret = _pick(creds, "api_secret", "secret")
+    api_passphrase = _pick(creds, "api_passphrase", "passphrase")
 
     if not (api_key and api_secret and api_passphrase):
         print(f"[FAIL] could not extract all 3 values from creds object", file=sys.stderr)
         print(f"       creds type: {type(creds).__name__}", file=sys.stderr)
-        print(f"       creds repr: {creds!r}"[:300], file=sys.stderr)
-        print(f"       attrs: {dir(creds)}", file=sys.stderr)
+        print(f"       attrs: {[a for a in dir(creds) if not a.startswith('_')]}", file=sys.stderr)
         return 1
 
     print()
