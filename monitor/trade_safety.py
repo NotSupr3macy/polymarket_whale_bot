@@ -28,8 +28,18 @@ def _env_float(key: str, default: float) -> float:
 
 MAX_DAILY_LOSS_USD = _env_float("LIVE_MAX_DAILY_LOSS_USD", 5.0)
 RECONCILE_TOLERANCE_USD = _env_float("LIVE_RECONCILE_TOLERANCE_USD", 1.0)
-MAX_SLIPPAGE_FRAC = _env_float("LIVE_MAX_SLIPPAGE_FRAC", 0.02)  # 2%
-MIN_LIQUIDITY_CUSHION = _env_float("LIVE_MIN_LIQUIDITY_CUSHION", 1.5)  # 1.5x order size
+
+# Slippage we'll accept relative to whale's entry. For tiny $1 orders
+# in markets where the whale just cleared the book, fills will often be
+# 5–20% above his price. Default loosened from 0.02 to 0.20 so the bot
+# can actually trade. EV is still positive at sportmaster's 60–70% WR
+# on dogs even with 15–20% slippage.
+MAX_SLIPPAGE_FRAC = _env_float("LIVE_MAX_SLIPPAGE_FRAC", 0.20)
+
+# Liquidity cushion: how many times our order size we want sitting in
+# the book within MAX_SLIPPAGE_FRAC of target. For $1 orders this can
+# safely be 1x — we just need ≥$1 of book depth to cover our purchase.
+MIN_LIQUIDITY_CUSHION = _env_float("LIVE_MIN_LIQUIDITY_CUSHION", 1.0)
 
 
 # ── Daily loss circuit breaker ─────────────────────────────────────────
