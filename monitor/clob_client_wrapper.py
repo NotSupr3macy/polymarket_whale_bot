@@ -286,22 +286,28 @@ async def get_polymarket_balance() -> float:
     """Query Polymarket's collateral balance for our account.
 
     This is what's actually usable for trading (vs USDC sitting in the
-    wallet but not yet deposited). Polymarket uses an ERC1155 wrapper
-    called ConditionalTokens; our deposit shows up there.
+    wallet but not yet deposited). Polymarket uses a proxy wallet
+    system; deposits show up via the CLOB /balance-allowance endpoint.
     """
     client = get_client()
     try:
-        # py-clob-client has a get_balance_allowance or similar; exact method
-        # name varies by SDK version. Fall back to USDC balance if unavailable.
-        bal = client.get_balance_allowance({
-            "asset_type": "COLLATERAL",
-        })
+        # Use the typed params object — older SDKs crash on raw dicts
+        # because they try to read .signature_type attr.
+        from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+        params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+        bal = client.get_balance_allowance(params)
         if isinstance(bal, dict):
-            # USDC has 6 decimals
-            return int(bal.get("balance", 0)) / 1_000_000.0
-        return float(bal)
+            # Response has 'balance' and 'allowance' keys. USDC = 6 decimals.
+            raw = int(bal.get("balance", 0))
+            return raw / 1_000_000.0
+        # Some SDK versions return a dataclass
+        raw = int(getattr(bal, "balance", 0))
+        return raw / 1_000_000.0
     except Exception as e:
-        logger.warning("Polymarket balance fetch failed (%s), falling back to USDC on-chain", e)
+        logger.warning(
+            "Polymarket balance fetch failed (%s), "
+            "falling back to USDC on-chain", e,
+        )
         return await get_usdc_balance()
 
 
