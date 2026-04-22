@@ -293,14 +293,22 @@ async def get_polymarket_balance() -> float:
     try:
         # Use the typed params object — older SDKs crash on raw dicts
         # because they try to read .signature_type attr.
+        #
+        # CRITICAL: signature_type must match the wallet type used at
+        # signup. MetaMask users on Polymarket get a POLY_PROXY (type 1).
+        # If we leave this at the default (0 = EOA), the CLOB returns
+        # the balance of the EOA (which is $0 after deposit) instead
+        # of the proxy (where the $10 actually lives).
         from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
-        params = BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+        params = BalanceAllowanceParams(
+            asset_type=AssetType.COLLATERAL,
+            signature_type=1,  # POLY_PROXY for MetaMask signups
+        )
         bal = client.get_balance_allowance(params)
         if isinstance(bal, dict):
             # Response has 'balance' and 'allowance' keys. USDC = 6 decimals.
             raw = int(bal.get("balance", 0))
             return raw / 1_000_000.0
-        # Some SDK versions return a dataclass
         raw = int(getattr(bal, "balance", 0))
         return raw / 1_000_000.0
     except Exception as e:
