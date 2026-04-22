@@ -171,6 +171,38 @@ MIN_MINUTES_TO_GAME_START = 0
 MIN_ENTRY_PRICE = 0.10
 
 
+# ── Sport detection by team name in title ──────────────────────────────
+# Used by per-whale filters that need to gate on sport without access
+# to the market slug. Keeps minimal keyword sets (teams that disambiguate
+# cleanly). "Kings" deliberately excluded from NBA and MLB sets because
+# LA Kings (NHL) and Sacramento Kings (NBA) collide; titles typically
+# include the other team so disambiguation is rarely needed.
+_NBA_TEAMS = frozenset({
+    "lakers", "celtics", "warriors", "knicks", "hawks", "cavaliers",
+    "bucks", "bulls", "76ers", "sixers", "nets", "raptors", "heat",
+    "magic", "pistons", "pacers", "wizards", "hornets", "mavericks",
+    "mavs", "rockets", "spurs", "grizzlies", "pelicans", "nuggets",
+    "timberwolves", "wolves", "thunder", "trail blazers", "blazers",
+    "jazz", "suns", "clippers",
+})
+_MLB_TEAMS = frozenset({
+    "yankees", "red sox", "blue jays", "rays", "orioles", "astros",
+    "angels", "mariners", "athletics", "twins", "royals",
+    "guardians", "white sox", "tigers", "braves", "phillies", "mets",
+    "marlins", "nationals", "brewers", "cubs", "cardinals", "pirates",
+    "reds", "dodgers", "giants", "padres", "rockies", "diamondbacks",
+    "d-backs", "texas rangers",  # "rangers" alone conflicts w/ NYR NHL
+})
+
+
+def _title_has_nba_team(title_lower: str) -> bool:
+    return any(team in title_lower for team in _NBA_TEAMS)
+
+
+def _title_has_mlb_team(title_lower: str) -> bool:
+    return any(team in title_lower for team in _MLB_TEAMS)
+
+
 # ── Subtype classifier (used by WHALE_FILTERS) ─────────────────────────
 def classify_subtype(title: str) -> str:
     """Classify a market title into a subtype so per-whale filters can
@@ -268,9 +300,34 @@ def _nbasniper_accept(sig: dict) -> bool:
     return classify_subtype(sig.get("title", "")) != "daily-ml"
 
 
+def _sportmaster_accept(sig: dict) -> bool:
+    """sportmaster777 totals-direction asymmetry (216 resolved, 7.8 days):
+        NBA Over:  7W/23L   23.3% WR  -$1,600   -7.2% ROI  <- LEAK
+        NBA Under: 18W/5L   78.3% WR  +$14,390 +109.5% ROI  <- PRINT
+        MLB Over:  38W/28L  57.6% WR  +$942     +9.2% ROI
+        MLB Under: 28W/35L  44.4% WR  -$3,758  -21.8% ROI  <- LEAK
+        NHL Over:  17W/16L  51.5% WR  +$2,378  +21.5% ROI
+    Block NBA Overs + MLB Unders (the two clear losing segments).
+    Everything else unrestricted — his broad 69% WR holds across h2h-ml,
+    spreads, and the rest of totals.
+    """
+    title = sig.get("title", "")
+    subtype = classify_subtype(title)
+    if subtype != "totals":
+        return True  # h2h-ml, spread, futures, etc. — no restriction
+    direction = (sig.get("direction") or "").strip().lower()
+    title_l = title.lower()
+    # NBA Over = bleeding (23% WR)
+    if direction == "over" and _title_has_nba_team(title_l):
+        return False
+    # MLB Under = bleeding (44% WR, -22% ROI over 63 bets)
+    if direction == "under" and _title_has_mlb_team(title_l):
+        return False
+    return True
+
+
 WHALE_FILTERS: dict[str, Callable[[dict], bool]] = {
-    # sportmaster777: intentionally NOT listed — broad 69% WR across all
-    # subtypes and price buckets per 26-bet paper sample.
+    "sportmaster777": _sportmaster_accept,
     "bigsix": _dogs_or_spreads_accept,
     "GamblingIsAllYouNeed": _giayn_accept,
     "kch123": _kch123_accept,

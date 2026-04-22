@@ -575,11 +575,24 @@ async def run_tests():
     assert     f({'title': 'Spread: A (-5.5)', 'entry_price': 0.60})  # spread OK
     assert     f({'title': 'A vs. B: O/U 215.5', 'entry_price': 0.45})  # totals OK
     assert not f({'title': 'Will A win on 2026-04-20?', 'entry_price': 0.40})  # daily-ml blocked
-    # ── sportmaster: not in WHALE_FILTERS ──────────────────────────────
-    assert 'sportmaster777' not in pt.WHALE_FILTERS
+    # ── sportmaster: NBA Over + MLB Under blocked, rest pass ────────────
+    f = pt.WHALE_FILTERS['sportmaster777']
+    assert not f({'title': 'Lakers vs. Celtics: O/U 215.5', 'direction': 'Over', 'entry_price': 0.50}), \
+        'sportmaster NBA Over should be BLOCKED (23% WR fingerprint)'
+    assert     f({'title': 'Lakers vs. Celtics: O/U 215.5', 'direction': 'Under', 'entry_price': 0.50}), \
+        'sportmaster NBA Under should pass (78% WR fingerprint)'
+    assert not f({'title': 'Yankees vs. Red Sox: O/U 8.5', 'direction': 'Under', 'entry_price': 0.50}), \
+        'sportmaster MLB Under should be BLOCKED (44% WR, -22% ROI)'
+    assert     f({'title': 'Yankees vs. Red Sox: O/U 8.5', 'direction': 'Over', 'entry_price': 0.50}), \
+        'sportmaster MLB Over should pass (+9% ROI)'
+    assert     f({'title': 'Lakers vs. Celtics', 'direction': 'Lakers', 'entry_price': 0.55}), \
+        'sportmaster NBA h2h-ml should pass (not totals)'
+    assert     f({'title': 'Spread: Lakers (-5.5)', 'direction': 'Lakers', 'entry_price': 0.55}), \
+        'sportmaster spreads should pass (not totals)'
     print(f'[OK] T17: per-whale fingerprint-tuned filters '
           f'(bigsix=dogs+spreads, GIAYN=h2h-ml only, '
-          f'kch123=barbell, nbasniper=non-daily, sportmaster=unrestricted)')
+          f'kch123=barbell, nbasniper=non-daily, '
+          f'sportmaster=block NBA Over + MLB Under)')
 
     # Test 18: MIN_ENTRY_PRICE floor blocks desperation longshots
     # at any price below $0.10 regardless of whale.
