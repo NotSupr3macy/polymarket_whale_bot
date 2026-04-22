@@ -48,9 +48,17 @@ async def fetch_trades(s, wallet):
 
 
 async def fetch_market(s, sem, cid):
+    """Try multiple Gamma query strategies. Some of nbasniper's older
+    markets are missing under certain param combos — be thorough."""
     async with sem:
-        for params in [{"condition_ids": cid, "closed": "true"},
-                       {"condition_ids": cid}]:
+        attempts = [
+            {"condition_ids": cid, "closed": "true"},
+            {"condition_ids": cid, "closed": "false"},
+            {"condition_ids": cid},
+            {"condition_ids": cid, "active": "false"},
+            {"condition_ids": cid, "archived": "true"},
+        ]
+        for params in attempts:
             try:
                 async with s.get(
                     "https://gamma-api.polymarket.com/markets",
@@ -112,9 +120,13 @@ async def analyze(alias, wallet):
 
         # Pull unique cids
         cids = {t.get("conditionId", "") for t in trades if t.get("conditionId")}
+        log(f"Fetching Gamma data for {len(cids)} unique markets...")
         sem = asyncio.Semaphore(20)
         markets = await asyncio.gather(*[fetch_market(s, sem, c) for c in cids])
         md_map = dict(zip(cids, markets))
+        hits = sum(1 for m in markets if m is not None)
+        log(f"Gamma hit rate: {hits}/{len(cids)} "
+            f"({hits / len(cids) * 100 if cids else 0:.1f}%)")
 
     # Reconstruct positions per (cid, outcome)
     pos = defaultdict(lambda: {
@@ -138,13 +150,29 @@ async def analyze(alias, wallet):
             p["sell_sh"] += sz
             p["sell_usd"] += sz * pr
 
+    # Totals-specific diagnostic: how many totals positions did we find,
+    # and of those, how many had Gamma data available?
+    totals_positions = [(cid, outcome, p) for (cid, outcome), p in pos.items()
+                        if is_totals_market(p["title"])]
+    totals_cids_set = {cid for cid, _, _ in totals_positions}
+    totals_with_gamma = sum(1 for c in totals_cids_set if md_map.get(c) is not None)
+    log(f"Totals positions: {len(totals_positions)} "
+        f"across {len(totals_cids_set)} markets")
+    log(f"Totals markets with Gamma data: {totals_with_gamma}/"
+        f"{len(totals_cids_set)} "
+        f"({totals_with_gamma / len(totals_cids_set) * 100 if totals_cids_set else 0:.1f}%)")
+
     # For each position: determine sport, direction, outcome status
+    # Track why rows get dropped for diagnostic
+    drop_reasons = defaultdict(int)
     rows = []
     for (cid, outcome), p in pos.items():
         if not is_totals_market(p["title"]):
+            drop_reasons["not_totals"] += 1
             continue
         m = md_map.get(cid)
         if not m:
+            drop_reasons["gamma_not_found"] += 1
             continue
         sport = sport_from_slug(m.get("slug", ""))
         direction = ou_direction(outcome)
@@ -154,6 +182,7 @@ async def analyze(alias, wallet):
             oc = m.get("outcomes", "[]")
             oc = json.loads(oc) if isinstance(oc, str) else oc
         except Exception:
+            drop_reasons["bad_outcomes_json"] += 1
             continue
 
         idx = next(
@@ -162,16 +191,19 @@ async def analyze(alias, wallet):
             None,
         )
         if idx is None or idx >= len(op):
+            drop_reasons["direction_not_in_outcomes"] += 1
             continue
         try:
             wp = float(op[idx])
         except Exception:
+            drop_reasons["price_not_numeric"] += 1
             continue
 
         net_sh = p["buy_sh"] - p["sell_sh"]
         net_usd = p["buy_usd"] - p["sell_usd"]
         # held-to-resolution only (skip scalps with net_sh ~= 0)
         if net_sh < 0.01:
+            drop_reasons["scalped_flat"] += 1
             continue
         entry = net_usd / net_sh if net_sh > 0.01 else 0
         if wp >= 0.95:
@@ -181,6 +213,7 @@ async def analyze(alias, wallet):
             status, won = "LOSS", False
             pnl = -net_usd
         else:
+            drop_reasons["still_live"] += 1
             continue  # still live or ambiguous
 
         rows.append({
@@ -189,8 +222,14 @@ async def analyze(alias, wallet):
             "title": p["title"],
         })
 
+    # Surface diagnostic so we understand why rows may be missing
+    log(f"\nDrop-reason histogram (positions not included in resolved rows):")
+    for reason, count in sorted(drop_reasons.items(), key=lambda kv: -kv[1]):
+        log(f"  {reason:30s} {count:>5}")
+    log(f"  {'-> resolved rows kept':30s} {len(rows):>5}")
+
     if not rows:
-        log("No resolved totals positions found.")
+        log("\nNo resolved totals positions found.")
         return
 
     # ─── Aggregate breakdowns ───────────────────────────────────────
