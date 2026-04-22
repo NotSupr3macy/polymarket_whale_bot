@@ -101,15 +101,28 @@ def get_client():
     # 2 = POLY_GNOSIS_SAFE — for Gnosis Safe multisig setups
     # Controlled by env so we can switch without code change.
     sig_type = int(os.getenv("POLYMARKET_SIGNATURE_TYPE", "0"))
-    _client = pkg["ClobClient"](
-        host=CLOB_HOST,
-        key=pkey,
-        chain_id=POLYGON_CHAIN_ID,
-        creds=creds,
-        signature_type=sig_type,
+
+    # For sig_type 1 and 2, the FUNDER is a separate address from the EOA
+    # (signer). The Safe/Proxy wallet holds the funds and is the order's
+    # maker. Without explicit funder, py-clob-client uses the EOA as
+    # funder which gives "invalid signature" rejections on the CLOB.
+    funder = os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+
+    client_kwargs = {
+        "host": CLOB_HOST,
+        "key": pkey,
+        "chain_id": POLYGON_CHAIN_ID,
+        "creds": creds,
+        "signature_type": sig_type,
+    }
+    if funder and sig_type in (1, 2):
+        client_kwargs["funder"] = funder
+
+    _client = pkg["ClobClient"](**client_kwargs)
+    logger.info(
+        "CLOB client constructed chain=%d signature_type=%d funder=%s",
+        POLYGON_CHAIN_ID, sig_type, funder or "(none, using EOA)",
     )
-    logger.info("CLOB client constructed chain=%d signature_type=%d",
-                POLYGON_CHAIN_ID, sig_type)
     return _client
 
 
