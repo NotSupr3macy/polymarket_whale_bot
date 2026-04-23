@@ -94,25 +94,34 @@ async def check_bankroll_reconciliation(
         return False, "live_state missing"
     db_bankroll = float(row[0])
 
+    # IMPORTANT: only count UNFILLED orders as "deployed" because once
+    # filled the USDC has already been deducted from bankroll AND
+    # converted to outcome tokens. FILLED positions show up as ERC1155
+    # token holdings, not as "deployed USDC."
+    #
+    # The right comparison:
+    #   db_bankroll                        = what we think USDC should be
+    #   on_chain_usdc + open_orders_value  = actual USDC available
+    # These should match (within fee dust) when DB is in sync.
     deployed_row = conn.execute(
-        """SELECT COALESCE(SUM(actual_cost_usd), 0) AS dep
+        """SELECT COALESCE(SUM(size_usd), 0) AS dep
            FROM live_positions
-           WHERE status='FILLED' AND outcome='OPEN'"""
+           WHERE status IN ('PLACED', 'PARTIAL')"""
     ).fetchone()
-    db_deployed = float(deployed_row[0] if deployed_row else 0)
-    db_equity = db_bankroll + db_deployed
+    db_pending_orders = float(deployed_row[0] if deployed_row else 0)
+    db_expected_usdc = db_bankroll  # pending orders haven't deducted yet
 
-    # On-chain side: Polymarket-deposited USDC + value of open orders
+    # On-chain side: USDC available + USDC locked in unfilled orders
     on_chain_usdc = await get_polymarket_balance()
     open_orders_usd = await get_open_orders_value()
-    chain_total = on_chain_usdc + open_orders_usd
+    chain_usdc_total = on_chain_usdc + open_orders_usd
 
-    drift = abs(db_equity - chain_total)
+    drift = abs(db_expected_usdc - chain_usdc_total)
     logger.info(
-        "reconcile: DB_equity=$%.2f (bankroll=$%.2f + deployed=$%.2f) "
-        "chain=$%.2f (usdc=$%.2f + open_orders=$%.2f) drift=$%.2f",
-        db_equity, db_bankroll, db_deployed,
-        chain_total, on_chain_usdc, open_orders_usd, drift,
+        "reconcile: DB bankroll=$%.2f (pending orders=$%.2f) | "
+        "chain=$%.2f (usdc=$%.2f + open_orders=$%.2f) | drift=$%.2f",
+        db_bankroll, db_pending_orders,
+        chain_usdc_total, on_chain_usdc, open_orders_usd, drift,
     )
 
     # Persist drift for observability
