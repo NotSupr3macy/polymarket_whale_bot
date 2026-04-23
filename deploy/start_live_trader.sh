@@ -43,12 +43,11 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 # Start in new tmux session.
-# Use python3 -u (unbuffered) so log output flushes in real-time
-# instead of waiting for stdio buffer to fill. Without this, tee
-# can hold output for minutes, making the daemon look dead even
-# when it's running fine.
+# Use python3 -u (unbuffered) AND write directly to log file (skip tee)
+# because tee block-buffers when stdout isn't a terminal. Adding `tee`
+# was masking active daemon output, making it appear dead.
 tmux new-session -d -s "$SESSION" -c "$BOT_DIR" \
-    "cd $BOT_DIR && source venv/bin/activate && PYTHONUNBUFFERED=1 python3 -u monitor/live_trader.py 2>&1 | tee -a $LOG_FILE"
+    "cd $BOT_DIR && source venv/bin/activate && PYTHONUNBUFFERED=1 exec python3 -u monitor/live_trader.py >> $LOG_FILE 2>&1"
 
 sleep 1
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
