@@ -195,11 +195,16 @@ def query_sportmaster_candidates(
           AND status = 'open'
           AND first_seen_at > ?
           AND muted_reason IS NULL
+          -- Only block re-attempts for positions that ACTUALLY landed
+          -- on chain (PLACED, PARTIAL, FILLED). FAILED rows (tick-size,
+          -- signature, liquidity) should NOT permanently blacklist the
+          -- condition_id — those errors get fixed and we want retries.
           AND NOT EXISTS (
               SELECT 1 FROM live_positions lp
               WHERE lp.whale_alias = tracked_whale_positions.alias
                 AND lp.condition_id = tracked_whale_positions.condition_id
-                AND lp.outcome IN ('OPEN')
+                AND lp.status IN ('PLACING', 'PLACED', 'PARTIAL', 'FILLED')
+                AND lp.outcome = 'OPEN'
           )
         ORDER BY first_seen_at ASC
         """,
@@ -278,9 +283,12 @@ async def open_live_position(
             order_type="GTC",
         )
     except Exception as e:
+        # Mark FAILED + outcome=CANCELLED so the candidate query can
+        # safely retry this condition_id (transient errors like tick-size
+        # rejection or liquidity might resolve on next attempt).
         conn.execute(
             """UPDATE live_positions
-               SET status='FAILED', fail_reason=?
+               SET status='FAILED', outcome='CANCELLED', fail_reason=?
                WHERE id=?""",
             (str(e)[:500], pos_id),
         )
