@@ -162,9 +162,29 @@ async def place_limit_order(
     pkg = _import_clob()
     client = get_client()
 
+    # Polymarket markets typically have tick_size=0.01 (1¢). Some special
+    # markets allow 0.001 but sports/events use 0.01. Round to nearest
+    # tick. For BUY orders, round UP so we're willing to pay slightly
+    # more (improves fill probability). For SELL, round DOWN.
+    tick = 0.01
+    if side.upper() == "BUY":
+        # Round UP to nearest tick
+        ticked = round(price / tick) * tick
+        if ticked < price:
+            ticked += tick
+        price = round(ticked, 2)
+    else:
+        # Round DOWN to nearest tick
+        ticked = round(price / tick) * tick
+        if ticked > price:
+            ticked -= tick
+        price = round(ticked, 2)
+    # Clamp to valid Polymarket range
+    price = max(0.01, min(0.99, price))
+
     args = pkg["OrderArgs"](
         token_id=token_id,
-        price=round(price, 3),
+        price=price,
         size=round(size_shares, 2),
         side=side.upper(),
     )
