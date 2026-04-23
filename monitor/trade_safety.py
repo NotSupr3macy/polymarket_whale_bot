@@ -116,13 +116,35 @@ async def check_bankroll_reconciliation(
     open_orders_usd = await get_open_orders_value()
     chain_usdc_total = on_chain_usdc + open_orders_usd
 
-    drift = abs(db_expected_usdc - chain_usdc_total)
+    drift_signed = chain_usdc_total - db_expected_usdc  # +ve = chain has MORE
+    drift = abs(drift_signed)
     logger.info(
         "reconcile: DB bankroll=$%.2f (pending orders=$%.2f) | "
-        "chain=$%.2f (usdc=$%.2f + open_orders=$%.2f) | drift=$%.2f",
+        "chain=$%.2f (usdc=$%.2f + open_orders=$%.2f) | drift=$%.2f (%+.2f)",
         db_bankroll, db_pending_orders,
-        chain_usdc_total, on_chain_usdc, open_orders_usd, drift,
+        chain_usdc_total, on_chain_usdc, open_orders_usd, drift, drift_signed,
     )
+
+    # Smart reconciliation:
+    #   - POSITIVE drift (chain > DB) → unaccounted INCOME, almost always
+    #     a winning position auto-redeeming. Auto-sync DB to chain
+    #     instead of halting.
+    #   - NEGATIVE drift (chain < DB) → unaccounted LOSS or external
+    #     withdrawal. THIS is the dangerous case → halt + alert.
+    if drift_signed > RECONCILE_TOLERANCE_USD:
+        # Chain ahead of DB → likely winning redemption
+        new_bankroll = chain_usdc_total
+        logger.warning(
+            "AUTO-SYNC: chain has $%+.2f more than DB (likely winning "
+            "redemption). Updating DB bankroll: $%.2f -> $%.2f",
+            drift_signed, db_bankroll, new_bankroll,
+        )
+        conn.execute(
+            "UPDATE live_state SET bankroll_usd=? WHERE id=1",
+            (new_bankroll,),
+        )
+        conn.commit()
+        return True, ""
 
     # Persist drift for observability
     conn.execute(
@@ -133,10 +155,13 @@ async def check_bankroll_reconciliation(
     )
     conn.commit()
 
+    # Negative drift beyond tolerance = chain has LESS than DB expected.
+    # This is the dangerous case (lost funds, external withdrawal, bug).
     if drift > RECONCILE_TOLERANCE_USD:
         return False, (
-            f"reconciliation drift ${drift:.2f} > tolerance "
-            f"${RECONCILE_TOLERANCE_USD:.2f}"
+            f"DB bankroll ${db_bankroll:.2f} > on-chain ${chain_usdc_total:.2f} "
+            f"by ${drift:.2f} (tolerance ${RECONCILE_TOLERANCE_USD:.2f}) — "
+            f"unaccounted loss or external withdrawal"
         )
     return True, ""
 
