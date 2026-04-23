@@ -322,6 +322,18 @@ async def open_live_position(
         entry_price, size_usd, size_shares, order_id[:16],
     )
 
+    # Telegram alert for live trade open
+    msg = (
+        f"💰 <b>NEW LIVE TRADE — {sig['alias']}</b>\n\n"
+        f"<b>Market:</b> {sig['title']}\n"
+        f"<b>Side:</b> {sig['direction']}\n"
+        f"<b>Whale entry:</b> ${entry_price:.3f}\n"
+        f"<b>Size:</b> ${size_usd:.2f} ({size_shares:.2f} shares)\n"
+        f"<b>Order ID:</b> <code>{order_id[:16]}...</code>\n\n"
+        f"<i>Awaiting fill confirmation</i>"
+    )
+    await send_telegram(msg)
+
     # Best-effort: see if it filled immediately
     await asyncio.sleep(3)  # let CLOB propagate
     await _check_and_record_fill(conn, pos_id)
